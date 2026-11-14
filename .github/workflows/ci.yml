@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      # dist/ is committed so `pnpm add -g github:ideaSquared/eng` works without a build step.
+      - name: dist/ matches src/
+        run: |
+          pnpm build
+          git diff --exit-code -- dist || { echo "::error::dist/ is out of date. Run pnpm build and commit it."; exit 1; }
+      - name: Installers parse
+        run: |
+          bash -n install.sh
+          shellcheck install.sh
+          pwsh -NoProfile -Command '$e = $null; [System.Management.Automation.Language.Parser]::ParseFile("install.ps1", [ref]$null, [ref]$e) | Out-Null; if ($e) { $e; exit 1 }'
+      - name: eng doctor runs
+        run: node dist/cli.js doctor || true
