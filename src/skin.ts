@@ -1,21 +1,19 @@
 // Installs the ideaSquared terminal skin: a Windows Terminal profile and scheme, and the themed Starship prompt.
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { spawn } from './exec.ts';
 import { hasOtherStarship, starshipConfig, windowsTerminalFragment, withPrompt, type Shell } from './theme.ts';
 
 const windows = process.platform === 'win32';
 const STARSHIP_CONFIG = join(homedir(), '.config', 'ideasquared', 'starship.toml');
 
-const ok = (command: string, args: string[]): boolean =>
-  spawnSync(command, args, { shell: windows, stdio: 'ignore' }).status === 0;
-const live = (command: string, args: string[]): boolean =>
-  spawnSync(command, args, { shell: windows, stdio: 'inherit' }).status === 0;
+const ok = (command: string, args: string[]): boolean => spawn(command, args, { stdio: 'ignore' }).status === 0;
+const live = (command: string, args: string[]): boolean => spawn(command, args, { stdio: 'inherit' }).status === 0;
 const output = (command: string, args: string[]): string | undefined => {
-  const r = spawnSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  return r.status === 0 ? r.stdout.trim() || undefined : undefined;
+  const r = spawn(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return r.status === 0 ? String(r.stdout).trim() || undefined : undefined;
 };
 
 const confirm = async (question: string): Promise<boolean> => {
