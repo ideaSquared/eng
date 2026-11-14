@@ -35,12 +35,32 @@ Before you start, ask for:
   `ship` check it);
 - the Discord server, where each product's `<project>-github` channel shows its deploys and alerts.
 
+## The eng app
+
+Run `eng` on its own to open a themed menu over everything: what is live in every product (`ship status`), deploys,
+sanitised logs and failed runs (`idea`), and setup, update, doctor and the terminal theme. Arrow keys or 1-9 to pick,
+esc to go back, q to quit. Each choice runs the real command in your terminal, then brings you back to the menu.
+
+## The terminal skin
+
+`eng theme` (setup offers it too) installs the ideaSquared look:
+
+- **Windows Terminal:** an `ideaSquared` profile and colour scheme, added as a fragment, so your own settings are never
+  edited. The profile opens straight into the eng app.
+- **The prompt:** a themed [Starship](https://starship.rs) prompt showing the folder, branch, git status and Node version.
+  It asks first, installs Starship if needed (winget or Homebrew), and adds two lines to your shell profile
+  (PowerShell, bash or zsh). If you already use Starship, it asks before replacing your prompt.
+
+The palette lives in `src/theme.ts`.
+
 ## Commands
 
 ```bash
+eng                          # open the eng app
 eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
+eng theme                    # install the ideaSquared terminal skin and prompt
 ```
 
 - Repos live in `~/ideasquared`. `eng setup --dir <folder>` uses another folder and remembers it
