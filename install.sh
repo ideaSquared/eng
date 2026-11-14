@@ -18,6 +18,9 @@ if ! node_ok; then
     export PATH="$HOME/.local/share/fnm:$HOME/.fnm:$PATH"
   fi
   eval "$(fnm env --shell bash)"
+  # Homebrew does not add fnm to the shell profile, so do it here (once) for new terminals.
+  case "$(basename "${SHELL:-bash}")" in zsh) profile="$HOME/.zshrc" ;; *) profile="$HOME/.bashrc" ;; esac
+  grep -qs 'fnm env' "$profile" || printf '\neval "$(fnm env --use-on-cd)"\n' >>"$profile"
   fnm install 22
   fnm default 22
   fnm use 22
@@ -49,8 +52,9 @@ if ! has gh; then
   fi
 fi
 
-if ! has pnpm; then
-  say "Installing pnpm"
+pnpm_ok() { has pnpm && [ "$(pnpm --version | cut -d. -f1)" -ge 10 ]; }
+if ! pnpm_ok; then
+  say "Installing pnpm 10"
   npm install -g pnpm@10
 fi
 

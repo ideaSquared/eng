@@ -3,7 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
 import { GLOBAL_PACKAGES, ORG, planRepo, REPOS } from "./repos.js";
@@ -55,16 +55,19 @@ const repoState = (dir, name) => {
         cloned: true,
         branch: branch === 'HEAD' ? undefined : branch,
         defaultBranch: remoteHead?.replace(/^origin\//, ''),
-        dirty: (git('git', ['status', '--porcelain']) ?? '') !== '',
+        // A failed status check counts as dirty: update must not pull when it cannot tell.
+        dirty: git('git', ['status', '--porcelain']) !== '',
     };
 };
 const installDeps = (dir, name) => {
     const path = join(dir, name);
     if (!existsSync(join(path, 'package.json')))
-        return;
+        return true;
     console.log(`\n→ ${name}: pnpm install`);
-    if (!live('pnpm', ['install'], path))
+    const ok = live('pnpm', ['install'], path);
+    if (!ok)
         console.log(`! ${name}: pnpm install failed. Run it in ${path} to see why.`);
+    return ok;
 };
 const installGlobals = () => {
     console.log('\n→ Installing ship, idea and eng');
@@ -94,34 +97,47 @@ const setup = (dir) => {
     if (!installGlobals())
         return 1;
     mkdirSync(dir, { recursive: true });
-    const toClone = REPOS.map((name) => planRepo(repoState(dir, name))).filter((a) => a.action === 'clone');
-    const cloned = toClone.filter(({ name }) => {
+    const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
+    const cloned = actions
+        .filter((a) => a.action === 'clone')
+        .filter(({ name }) => {
         console.log(`\n→ Cloning ${ORG}/${name}`);
         const ok = live('gh', ['repo', 'clone', `${ORG}/${name}`, name], dir);
         if (!ok)
             console.log(`! ${name}: clone failed. Ask for access to ${ORG}/${name} if you need it.`);
         return ok;
     });
-    cloned.forEach(({ name }) => installDeps(dir, name));
+    // Existing clean checkouts get their dependencies too, so re-running setup finishes an interrupted one.
+    const toInstall = [...cloned, ...actions.filter((a) => a.action === 'pull')];
+    const installed = toInstall.map(({ name }) => installDeps(dir, name)).every(Boolean);
     console.log('');
-    return doctor(dir);
+    const status = doctor(dir);
+    return installed ? status : 1;
 };
 const update = (dir) => {
     const globalsOk = installGlobals();
     const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
-    actions.forEach((a) => {
-        if (a.action === 'clone')
-            return console.log(`! ${a.name}: not cloned. Run eng setup.`);
-        if (a.action === 'skip')
-            return console.log(`- ${a.name}: skipped, ${a.reason}`);
+    const reposOk = actions
+        .map((a) => {
+        if (a.action === 'clone') {
+            console.log(`! ${a.name}: not cloned. Run eng setup.`);
+            return true;
+        }
+        if (a.action === 'skip') {
+            console.log(`- ${a.name}: skipped, ${a.reason}`);
+            return true;
+        }
         console.log(`\n→ ${a.name}: git pull`);
-        if (!live('git', ['pull', '--ff-only'], join(dir, a.name)))
-            return console.log(`! ${a.name}: pull failed.`);
-        installDeps(dir, a.name);
-    });
+        if (!live('git', ['pull', '--ff-only'], join(dir, a.name))) {
+            console.log(`! ${a.name}: pull failed.`);
+            return false;
+        }
+        return installDeps(dir, a.name);
+    })
+        .every(Boolean);
     console.log('');
     const status = doctor(dir);
-    return globalsOk ? status : 1;
+    return globalsOk && reposOk ? status : 1;
 };
 const main = () => {
     const { values, positionals } = parseArgs({
@@ -133,9 +149,9 @@ const main = () => {
         console.log(HELP);
         return values.help ? 0 : 1;
     }
+    const dir = values.dir ? resolve(values.dir) : reposDir();
     if (values.dir && command === 'setup')
-        saveDir(values.dir);
-    const dir = values.dir ?? reposDir();
+        saveDir(dir);
     if (command === 'setup')
         return setup(dir);
     if (command === 'update')

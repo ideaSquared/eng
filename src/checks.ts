@@ -90,7 +90,7 @@ export const checkTool = (tool: Tool, run: Run): Result => {
 };
 
 export const checkGitHubLogin = (run: Run): Result => {
-  const ok = run('gh', ['auth', 'status']) !== undefined;
+  const ok = run('gh', ['auth', 'status', '--hostname', 'github.com']) !== undefined;
   return ok
     ? { name: 'GitHub login', ok, required: true, detail: 'signed in' }
     : { name: 'GitHub login', ok, required: true, detail: 'not signed in', fix: 'Run: gh auth login' };

@@ -67,7 +67,7 @@ export const checkTool = (tool, run) => {
     return { ...base, ok: true, detail: tool.showVersion ? show(version) : 'installed' };
 };
 export const checkGitHubLogin = (run) => {
-    const ok = run('gh', ['auth', 'status']) !== undefined;
+    const ok = run('gh', ['auth', 'status', '--hostname', 'github.com']) !== undefined;
     return ok
         ? { name: 'GitHub login', ok, required: true, detail: 'signed in' }
         : { name: 'GitHub login', ok, required: true, detail: 'not signed in', fix: 'Run: gh auth login' };
