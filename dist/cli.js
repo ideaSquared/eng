@@ -8,6 +8,7 @@ import { parseArgs } from 'node:util';
 import { chooseAction } from "./app.js";
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
 import { GLOBAL_PACKAGES, ORG, planRepo, REPOS } from "./repos.js";
+import { spawn } from "./exec.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
@@ -19,19 +20,14 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng theme                    install the ideaSquared terminal skin and prompt
 
 Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.`;
-// Global pnpm commands are .cmd shims on Windows, which only start through a shell.
-const shell = process.platform === 'win32';
 const CONFIG = join(homedir(), '.config', 'eng', 'config.json');
-const run = (command, args) => {
-    const result = spawnSync(command, args, { encoding: 'utf8', shell, stdio: ['ignore', 'pipe', 'pipe'] });
-    return result.status === 0 ? result.stdout.trim() : undefined;
-};
 const runIn = (cwd) => (command, args) => {
-    const result = spawnSync(command, args, { cwd, encoding: 'utf8', shell, stdio: ['ignore', 'pipe', 'pipe'] });
-    return result.status === 0 ? result.stdout.trim() : undefined;
+    const result = spawn(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return result.status === 0 ? String(result.stdout).trim() : undefined;
 };
+const run = runIn();
 // Runs with the terminal attached, for commands that ask questions or show progress.
-const live = (command, args, cwd) => spawnSync(command, args, { cwd, shell, stdio: 'inherit' }).status === 0;
+const live = (command, args, cwd) => spawn(command, args, { cwd, stdio: 'inherit' }).status === 0;
 const savedDir = () => {
     try {
         const parsed = JSON.parse(readFileSync(CONFIG, 'utf8'));
@@ -160,6 +156,8 @@ const runAction = (action) => {
 };
 const pressAnyKey = () => new Promise((done) => {
     process.stdout.write(`\n${paint(PALETTE.muted, 'Press any key to go back to the menu')}`);
+    // Ink unrefs stdin when the menu closes, so take it back or Node exits while waiting for the key.
+    process.stdin.ref();
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.once('data', () => {
