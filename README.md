@@ -50,6 +50,9 @@ esc to go back, q to quit. Each choice runs the real command in your terminal, t
 - **The prompt:** a themed [Starship](https://starship.rs) prompt showing the folder, branch, git status and Node version.
   It asks first, installs Starship if needed (winget or Homebrew), and adds two lines to your shell profile
   (PowerShell, bash or zsh). If you already use Starship, it asks before replacing your prompt.
+- **cmd.exe:** cmd has no prompt hook, so `eng theme` installs [Clink](https://chrisant996.github.io/clink/) (winget),
+  turns it on for cmd (`clink autorun install`, per user, no admin) and adds `ideasquared-starship.lua` to
+  `%LOCALAPPDATA%\clink` to start the same prompt.
 
 The palette lives in `src/theme.ts`.
 
