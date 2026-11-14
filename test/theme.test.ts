@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasOtherStarship, paint, PROFILE_MARKER, SCHEME_NAME, starshipConfig, windowsTerminalFragment, withPrompt } from '../src/theme.ts';
+import { clinkScript, hasOtherStarship, paint, PROFILE_MARKER, SCHEME_NAME, starshipConfig, windowsTerminalFragment, withPrompt } from '../src/theme.ts';
 
 describe('withPrompt', () => {
   it('adds the prompt to a bash or zsh profile', () => {
@@ -58,5 +58,13 @@ describe('the skin', () => {
 describe('paint', () => {
   it('colours text with a palette hex', () => {
     expect(paint('#8B5CF6', 'hi')).toBe('\x1b[38;2;139;92;246mhi\x1b[0m');
+  });
+});
+
+describe('clinkScript', () => {
+  it('points Starship at the ideaSquared config and starts it in cmd', () => {
+    const script = clinkScript('C:\\Users\\me\\.config\\ideasquared\\starship.toml');
+    expect(script).toContain("os.setenv('STARSHIP_CONFIG', [[C:\\Users\\me\\.config\\ideasquared\\starship.toml]])");
+    expect(script).toContain("io.popen('starship init cmd')");
   });
 });

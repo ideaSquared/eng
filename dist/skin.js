@@ -1,10 +1,10 @@
 // Installs the ideaSquared terminal skin: a Windows Terminal profile and scheme, and the themed Starship prompt.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { spawn } from "./exec.js";
-import { hasOtherStarship, starshipConfig, windowsTerminalFragment, withPrompt } from "./theme.js";
+import { CLINK_SCRIPT_NAME, clinkScript, hasOtherStarship, starshipConfig, windowsTerminalFragment, withPrompt } from "./theme.js";
 const windows = process.platform === 'win32';
 const STARSHIP_CONFIG = join(homedir(), '.config', 'ideasquared', 'starship.toml');
 const ok = (command, args) => spawn(command, args, { stdio: 'ignore' }).status === 0;
@@ -48,6 +48,41 @@ const installStarship = () => {
     console.log('! Install Starship from https://starship.rs, then run eng theme again.');
     return false;
 };
+// cmd.exe has no prompt hook of its own; Clink adds one. Its .bat is not always on PATH right after winget installs it.
+const findClink = () => {
+    if (ok('clink', ['--version']))
+        return 'clink';
+    const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs')];
+    return roots.filter((root) => Boolean(root)).map((root) => join(root, 'clink', 'clink.bat')).find((path) => existsSync(path));
+};
+const installCmdPrompt = async () => {
+    const localAppData = process.env.LOCALAPPDATA;
+    if (!localAppData)
+        return;
+    if (!findClink()) {
+        console.log('\n→ Installing Clink (gives cmd.exe a prompt hook)');
+        if (!ok('winget', ['--version']) || !live('winget', ['install', '--id', 'chrisant996.Clink', '--exact', '--silent', '--accept-source-agreements', '--accept-package-agreements'])) {
+            console.log('! Could not install Clink. Install it from https://chrisant996.github.io/clink/, then run eng theme again.');
+            return;
+        }
+    }
+    const clink = findClink();
+    if (!clink) {
+        console.log('! Clink installed, but eng could not find it yet. Open a new terminal and run eng theme again.');
+        return;
+    }
+    // Starts Clink in every cmd.exe window (a per-user registry setting; no admin needed).
+    if (!ok(clink, ['autorun', 'install', '--', '--quiet']))
+        console.log('! Could not turn on Clink for cmd.exe. Run: clink autorun install');
+    const scripts = join(localAppData, 'clink');
+    const others = existsSync(scripts)
+        ? readdirSync(scripts).filter((f) => f.endsWith('.lua') && f !== CLINK_SCRIPT_NAME && /starship init/.test(readFileSync(join(scripts, f), 'utf8')))
+        : [];
+    if (others.length > 0 && !(await confirm(`${join(scripts, others[0] ?? '')} already starts a Starship prompt in cmd. Add ours as well?`)))
+        return;
+    write(join(scripts, CLINK_SCRIPT_NAME), clinkScript(STARSHIP_CONFIG));
+    console.log(`✓ cmd.exe: added the ideaSquared prompt (${join(scripts, CLINK_SCRIPT_NAME)})`);
+};
 // The profile files each shell on this machine reads at start.
 const profiles = () => {
     if (windows) {
@@ -82,6 +117,8 @@ export const installTheme = async (reposDir) => {
         write(path, next);
         console.log(`✓ ${path}: added the ideaSquared prompt`);
     }
+    if (windows)
+        await installCmdPrompt();
     console.log('\nOpen a new terminal to see it.');
     return 0;
 };

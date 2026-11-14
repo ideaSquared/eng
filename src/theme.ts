@@ -103,3 +103,12 @@ export const paint = (hex: string, text: string): string => {
   const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
   return `\x1b[38;2;${r};${g};${b}m${text}\x1b[0m`;
 };
+
+export const CLINK_SCRIPT_NAME = 'ideasquared-starship.lua';
+
+// Clink loads every .lua file in its profile folder when cmd.exe starts; this one starts the themed prompt there.
+export const clinkScript = (configPath: string): string =>
+  `-- ideaSquared prompt for cmd.exe, written by eng theme. eng theme overwrites this file.
+os.setenv('STARSHIP_CONFIG', [[${configPath}]])
+load(io.popen('starship init cmd'):read('*a'))()
+`;
