@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
-import { spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { parseArgs } from 'node:util';
+import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from './app.tsx';
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS, type Result, type Run } from './checks.ts';
 import type { Action } from './menu.ts';
-import { GLOBAL_PACKAGES, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
+import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
+import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { spawn } from './exec.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
@@ -21,7 +22,8 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
 
-Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.`;
+Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.
+Every run first updates eng, ship and idea if GitHub has newer versions. ENG_NO_UPDATE=1 turns that off.`;
 
 const CONFIG = join(homedir(), '.config', 'eng', 'config.json');
 
@@ -37,23 +39,52 @@ const run = runIn();
 const live = (command: string, args: string[], cwd?: string): boolean =>
   spawn(command, args, { cwd, stdio: 'inherit' }).status === 0;
 
-const savedDir = (): string | undefined => {
+// ~/.config/eng/config.json: the repos folder, and the commit of each global CLI last installed.
+type Config = { dir?: string; installed?: Shas };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+
+const readConfig = (): Config => {
   try {
     const parsed: unknown = JSON.parse(readFileSync(CONFIG, 'utf8'));
-    return typeof parsed === 'object' && parsed !== null && 'dir' in parsed && typeof parsed.dir === 'string'
-      ? parsed.dir
+    if (!isRecord(parsed)) return {};
+    const installed = isRecord(parsed.installed)
+      ? Object.fromEntries(Object.entries(parsed.installed).filter((e): e is [string, string] => typeof e[1] === 'string'))
       : undefined;
+    return { dir: typeof parsed.dir === 'string' ? parsed.dir : undefined, installed };
+  } catch {
+    return {};
+  }
+};
+
+const saveConfig = (patch: Config): void => {
+  mkdirSync(dirname(CONFIG), { recursive: true });
+  writeFileSync(CONFIG, `${JSON.stringify({ ...readConfig(), ...patch }, null, 2)}\n`);
+};
+
+const reposDir = (): string => process.env.ENG_DIR ?? readConfig().dir ?? join(homedir(), 'ideasquared');
+
+const execFileAsync = promisify(execFile);
+
+const latestCommit = async (repo: string): Promise<string | undefined> => {
+  try {
+    const { stdout } = await execFileAsync('git', ['ls-remote', `https://github.com/${repo}`, 'HEAD'], { timeout: 5000 });
+    return parseLsRemote(stdout);
   } catch {
     return undefined;
   }
 };
 
-const saveDir = (dir: string): void => {
-  mkdirSync(dirname(CONFIG), { recursive: true });
-  writeFileSync(CONFIG, `${JSON.stringify({ dir }, null, 2)}\n`);
-};
+const latestCommits = async (): Promise<Record<string, string | undefined>> =>
+  Object.fromEntries(await Promise.all(GLOBAL_REPOS.map(async (repo) => [repo, await latestCommit(repo)] as const)));
 
-const reposDir = (): string => process.env.ENG_DIR ?? savedDir() ?? join(homedir(), 'ideasquared');
+const recordInstalled = (latest: Record<string, string | undefined>): void =>
+  saveConfig({
+    installed: {
+      ...readConfig().installed,
+      ...Object.fromEntries(Object.entries(latest).filter((e): e is [string, string] => e[1] !== undefined)),
+    },
+  });
 
 const repoState = (dir: string, name: string): RepoState => {
   const path = join(dir, name);
@@ -80,9 +111,28 @@ const installDeps = (dir: string, name: string): boolean => {
   return ok;
 };
 
-const installGlobals = (): boolean => {
+const installGlobals = async (): Promise<boolean> => {
+  const latest = await latestCommits();
   console.log('\n→ Installing ship, idea and eng');
-  return live('pnpm', ['add', '-g', ...GLOBAL_PACKAGES]);
+  const ok = live('pnpm', ['add', '-g', ...GLOBAL_PACKAGES]);
+  if (ok) recordInstalled(latest);
+  return ok;
+};
+
+// Brings eng, ship and idea up to date before eng does anything else. True when eng itself changed.
+const selfUpdate = async (): Promise<boolean> => {
+  const latest = await latestCommits();
+  const stale = staleRepos(readConfig().installed ?? {}, latest);
+  if (stale.length === 0) return false;
+  console.log(paint(PALETTE.accent, `↻ Updating ${listNames(stale.map((repo) => GLOBAL_CLIS[repo] ?? repo))}...`));
+  const result = spawn('pnpm', ['add', '-g', ...GLOBAL_PACKAGES], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  if (result.status !== 0) {
+    console.log(paint(PALETTE.warning, '! The update failed. Run eng update to see why.'));
+    return false;
+  }
+  recordInstalled(latest);
+  console.log(paint(PALETTE.success, '✓ Up to date'));
+  return stale.includes(`${ORG}/eng`);
 };
 
 const doctor = (dir: string): number => {
@@ -108,7 +158,7 @@ const setup = async (dir: string): Promise<number> => {
     if (!live('gh', ['auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web'])) return 1;
   }
   live('gh', ['auth', 'setup-git']);
-  if (!installGlobals()) return 1;
+  if (!(await installGlobals())) return 1;
 
   mkdirSync(dir, { recursive: true });
   const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
@@ -133,8 +183,8 @@ const setup = async (dir: string): Promise<number> => {
   return installed ? status : 1;
 };
 
-const update = (dir: string): number => {
-  const globalsOk = installGlobals();
+const update = async (dir: string): Promise<number> => {
+  const globalsOk = await installGlobals();
   const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
   const reposOk = actions
     .map((a) => {
@@ -199,13 +249,18 @@ const main = async (): Promise<number> => {
     options: { dir: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
   });
   const [command] = positionals;
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  // When eng itself updated, run the new version for what was asked, without checking again.
+  if (!values.help && shouldCheck(command, process.env, interactive) && (await selfUpdate())) {
+    return spawn('eng', process.argv.slice(2), { stdio: 'inherit', env: { ...process.env, ENG_NO_UPDATE: '1' } }).status ?? 1;
+  }
   if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch();
   if (values.help || !command) {
     console.log(HELP);
     return values.help ? 0 : 1;
   }
   const dir = values.dir ? resolve(values.dir) : reposDir();
-  if (values.dir && command === 'setup') saveDir(dir);
+  if (values.dir && command === 'setup') saveConfig({ dir });
   if (command === 'setup') return setup(dir);
   if (command === 'update') return update(dir);
   if (command === 'doctor') return doctor(dir);
