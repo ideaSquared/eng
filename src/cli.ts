@@ -5,14 +5,20 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { chooseAction } from './app.tsx';
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS, type Result, type Run } from './checks.ts';
+import type { Action } from './menu.ts';
 import { GLOBAL_PACKAGES, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
+import { installTheme } from './skin.ts';
+import { paint, PALETTE } from './theme.ts';
 
 const HELP = `eng: set up and update an ideaSquared developer machine
 
+  eng                          open the eng app: status, deploys, logs and runs from one themed menu
   eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, clone and install every repo
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date
+  eng theme                    install the ideaSquared terminal skin and prompt
 
 Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.`;
 
@@ -94,7 +100,7 @@ const doctor = (dir: string): number => {
   return ok ? 0 : 1;
 };
 
-const setup = (dir: string): number => {
+const setup = async (dir: string): Promise<number> => {
   const base = formatResults(TOOLS.filter((t) => BASE_TOOLS.includes(t.name)).map((t) => checkTool(t, run)));
   if (!base.ok) {
     console.log(`${base.lines.join('\n')}\n\nInstall the missing tools (the installer script does this), then run eng setup again.`);
@@ -123,6 +129,10 @@ const setup = (dir: string): number => {
 
   console.log('');
   const status = doctor(dir);
+  if (process.stdin.isTTY) {
+    console.log('');
+    await installTheme(dir);
+  }
   return installed ? status : 1;
 };
 
@@ -152,12 +162,45 @@ const update = (dir: string): number => {
   return globalsOk && reposOk ? status : 1;
 };
 
-const main = (): number => {
+// Each choice runs with the terminal attached; eng itself runs as this same script, installed or not.
+const runAction = (action: Extract<Action, { kind: 'run' }>): void => {
+  console.clear();
+  if (action.command === 'eng') {
+    spawnSync(process.execPath, [process.argv[1] ?? 'eng', ...action.args], { stdio: 'inherit' });
+    return;
+  }
+  if (!live(action.command, action.args)) console.log(`\n! ${action.command} did not finish cleanly. Run eng doctor if it is missing.`);
+};
+
+const pressAnyKey = (): Promise<void> =>
+  new Promise((done) => {
+    process.stdout.write(`\n${paint(PALETTE.muted, 'Press any key to go back to the menu')}`);
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.once('data', () => {
+      process.stdin.setRawMode(false);
+      process.stdin.pause();
+      done();
+    });
+  });
+
+const launch = async (): Promise<number> => {
+  for (;;) {
+    const action = await chooseAction();
+    if (action.kind === 'quit') return 0;
+    runAction(action);
+    await pressAnyKey();
+    console.clear();
+  }
+};
+
+const main = async (): Promise<number> => {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: { dir: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
   });
   const [command] = positionals;
+  if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch();
   if (values.help || !command) {
     console.log(HELP);
     return values.help ? 0 : 1;
@@ -167,8 +210,9 @@ const main = (): number => {
   if (command === 'setup') return setup(dir);
   if (command === 'update') return update(dir);
   if (command === 'doctor') return doctor(dir);
+  if (command === 'theme') return installTheme(dir);
   console.log(`Unknown command: ${command}\n\n${HELP}`);
   return 1;
 };
 
-process.exitCode = main();
+process.exitCode = await main();
