@@ -1,0 +1,29 @@
+{
+  "name": "@ideasquared/eng",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "One command to set up and update an ideaSquared developer machine.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "packageManager": "pnpm@10.34.3",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.2"
+  },
+  "bin": {
+    "eng": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
+}
