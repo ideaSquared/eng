@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -209,11 +209,22 @@ const update = async (dir: string): Promise<number> => {
   return globalsOk && reposOk ? status : 1;
 };
 
-// Each choice runs with the terminal attached; eng itself runs as this same script, installed or not.
-const runAction = (action: Extract<Action, { kind: 'run' }>): void => {
+const runCommand = (command: string, dir: string): Promise<number> | number | undefined => {
+  if (command === 'setup') return setup(dir);
+  if (command === 'update') return update(dir);
+  if (command === 'doctor') return doctor(dir);
+  if (command === 'theme') return installTheme(dir);
+  return undefined;
+};
+
+// Each choice runs with the terminal attached. eng's own commands run in this process: an update replaces the
+// install folder this script was started from, so starting it again by path can fail.
+const runAction = async (action: Extract<Action, { kind: 'run' }>): Promise<void> => {
   console.clear();
+  // Ink unrefs stdin when the menu closes; take it back so a command can ask questions without Node exiting.
+  process.stdin.ref();
   if (action.command === 'eng') {
-    spawnSync(process.execPath, [process.argv[1] ?? 'eng', ...action.args], { stdio: 'inherit' });
+    await runCommand(action.args[0] ?? '', reposDir());
     return;
   }
   if (!live(action.command, action.args)) console.log(`\n! ${action.command} did not finish cleanly. Run eng doctor if it is missing.`);
@@ -222,8 +233,6 @@ const runAction = (action: Extract<Action, { kind: 'run' }>): void => {
 const pressAnyKey = (): Promise<void> =>
   new Promise((done) => {
     process.stdout.write(`\n${paint(PALETTE.muted, 'Press any key to go back to the menu')}`);
-    // Ink unrefs stdin when the menu closes, so take it back or Node exits while waiting for the key.
-    process.stdin.ref();
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.once('data', () => {
@@ -237,7 +246,7 @@ const launch = async (): Promise<number> => {
   for (;;) {
     const action = await chooseAction();
     if (action.kind === 'quit') return 0;
-    runAction(action);
+    await runAction(action);
     await pressAnyKey();
     console.clear();
   }
@@ -261,10 +270,8 @@ const main = async (): Promise<number> => {
   }
   const dir = values.dir ? resolve(values.dir) : reposDir();
   if (values.dir && command === 'setup') saveConfig({ dir });
-  if (command === 'setup') return setup(dir);
-  if (command === 'update') return update(dir);
-  if (command === 'doctor') return doctor(dir);
-  if (command === 'theme') return installTheme(dir);
+  const result = runCommand(command, dir);
+  if (result !== undefined) return result;
   console.log(`Unknown command: ${command}\n\n${HELP}`);
   return 1;
 };
