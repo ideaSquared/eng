@@ -20,6 +20,7 @@ if ! node_ok; then
   eval "$(fnm env --shell bash)"
   # Homebrew does not add fnm to the shell profile, so do it here (once) for new terminals.
   case "$(basename "${SHELL:-bash}")" in zsh) profile="$HOME/.zshrc" ;; *) profile="$HOME/.bashrc" ;; esac
+  # shellcheck disable=SC2016 # written to the profile as-is, to run in each new shell
   grep -qs 'fnm env' "$profile" || printf '\neval "$(fnm env --use-on-cd)"\n' >>"$profile"
   fnm install 22
   fnm default 22
