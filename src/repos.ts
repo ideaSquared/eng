@@ -13,12 +13,14 @@ export const REPOS: readonly string[] = [
   'shipper',
 ];
 
-// Global CLIs, installed and updated from their repos' default branches.
-export const GLOBAL_PACKAGES: readonly string[] = [
-  `github:${ORG}/eng`,
-  `github:${ORG}/shipper`,
-  `github:${ORG}/agent-idea`,
-];
+// Global CLIs, installed and updated from their repos' default branches, with the command each one gives you.
+export const GLOBAL_CLIS: Readonly<Record<string, string>> = {
+  [`${ORG}/eng`]: 'eng',
+  [`${ORG}/shipper`]: 'ship',
+  [`${ORG}/agent-idea`]: 'idea',
+};
+export const GLOBAL_REPOS: readonly string[] = Object.keys(GLOBAL_CLIS);
+export const GLOBAL_PACKAGES: readonly string[] = GLOBAL_REPOS.map((repo) => `github:${repo}`);
 
 export type RepoState =
   | { name: string; cloned: false }

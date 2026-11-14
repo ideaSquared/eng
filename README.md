@@ -68,7 +68,9 @@ eng theme                    # install the ideaSquared terminal skin and prompt
 - `eng update` only pulls a repo that is on its default branch with no uncommitted changes. Anything else is
   skipped and listed, so it never touches work in progress.
 - Docker is optional: only adopt-dont-shop needs it, so `eng doctor` warns rather than fails without it.
-- Run `eng update` whenever you start work after a break. It is safe to run any time.
+- Every time you run `eng`, it first checks GitHub (a quick `git ls-remote`) and updates eng, ship and idea if
+  any is newer, then carries on. Offline, it skips the check. `ENG_NO_UPDATE=1` turns it off.
+- Run `eng update` whenever you start work after a break, to pull your repos too. It is safe to run any time.
 
 ## Then
 

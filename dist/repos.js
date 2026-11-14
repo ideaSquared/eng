@@ -11,12 +11,14 @@ export const REPOS = [
     'pairflix',
     'shipper',
 ];
-// Global CLIs, installed and updated from their repos' default branches.
-export const GLOBAL_PACKAGES = [
-    `github:${ORG}/eng`,
-    `github:${ORG}/shipper`,
-    `github:${ORG}/agent-idea`,
-];
+// Global CLIs, installed and updated from their repos' default branches, with the command each one gives you.
+export const GLOBAL_CLIS = {
+    [`${ORG}/eng`]: 'eng',
+    [`${ORG}/shipper`]: 'ship',
+    [`${ORG}/agent-idea`]: 'idea',
+};
+export const GLOBAL_REPOS = Object.keys(GLOBAL_CLIS);
+export const GLOBAL_PACKAGES = GLOBAL_REPOS.map((repo) => `github:${repo}`);
 // Only a clean checkout of the default branch is pulled, so update never touches work in progress.
 export const planRepo = (state) => {
     if (!state.cloned)
