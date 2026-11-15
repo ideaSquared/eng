@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atLeast, checkGitHubLogin, checkTool, formatResults, parseVersion, type Run, type Tool } from '../src/checks.ts';
+import { atLeast, canReadTeams, checkGitHubLogin, checkTool, formatResults, parseVersion, type Run, type Tool } from '../src/checks.ts';
 
 const node: Tool = {
   name: 'Node',
@@ -83,5 +83,23 @@ describe('formatResults', () => {
       { name: 'Docker', ok: false, required: false, detail: 'not found', fix: 'get Docker' },
     ]);
     expect(lines).toEqual(['✓ Node: 22.20.1', '✗ gh: not found\n    install gh', '! Docker: not found\n    get Docker']);
+  });
+});
+
+describe('GitHub token scopes', () => {
+  it('reads the scopes from the response headers of gh api -i', () => {
+    const headers = 'HTTP/2.0 200 OK\nContent-Type: application/json\nX-Oauth-Scopes: gist, read:org, repo\n\n{"login":"x"}';
+    expect(canReadTeams(headers)).toBe(true);
+  });
+
+  it('accepts admin:org and write:org, which include read:org', () => {
+    expect(canReadTeams('X-OAuth-Scopes: repo, admin:org\n')).toBe(true);
+    expect(canReadTeams('X-OAuth-Scopes: repo, write:org\n')).toBe(true);
+  });
+
+  it('says no when read:org is missing or the headers cannot be read', () => {
+    expect(canReadTeams('X-Oauth-Scopes: gist, repo\n')).toBe(false);
+    expect(canReadTeams('X-Oauth-Scopes: write:org-ish\n')).toBe(false);
+    expect(canReadTeams(undefined)).toBe(false);
   });
 });

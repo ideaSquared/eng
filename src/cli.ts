@@ -2,12 +2,12 @@
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from './app.tsx';
-import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS, type Result, type Run } from './checks.ts';
+import { BASE_TOOLS, canReadTeams, checkGitHubLogin, checkTool, formatResults, TOOLS, type Result, type Run } from './checks.ts';
 import type { Action } from './menu.ts';
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
@@ -16,15 +16,12 @@ import { banner, complete, prompt, route, type ShellState } from './shell.ts';
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment, type Environment } from './session.ts';
 import { colour, plain, runOps } from './ops.ts';
 import { installTheme } from './skin.ts';
-import { ensureSshKey } from './ssh-key.ts';
-import { killLiveTunnels, openTunnel, systemTunnelDeps } from './tunnel.ts';
 import { paint, PALETTE } from './theme.ts';
 
 const HELP = `eng: set up and update an ideaSquared developer machine
 
   eng [--production]           open the eng app: status, deploys, logs and runs from one themed menu
-  eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, create your SSH key and add its public
-                               half to GitHub, clone and install every repo
+  eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, clone and install every repo
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
@@ -35,9 +32,9 @@ const HELP = `eng: set up and update an ideaSquared developer machine
                                in the picker, type words to filter the list
   eng ops find <words...>      search every product's commands (every word must match) and print how to run them
 
-eng ops covers products that expose the ops contract (creatrgrid, pairflix, ads). ads is reached through an SSH
-tunnel eng opens itself (run \`pnpm ops setup\` in adopt-dont-shop once); unlocks and history stay in \`pnpm ops\`.
-The environment is ENG_ENV (staging unless set); --env overrides it.
+eng ops covers products that expose the ops contract (creatrgrid, pairflix, ads). Access is your GitHub team for
+that product. For ads, unlocks and history stay in \`pnpm ops\`. The environment is ENG_ENV (staging unless set);
+--env overrides it.
 
 In the eng app press / to search every action; in eng shell, find <words...> runs eng ops find and help <words...>
 prints only the help lines matching every word.
@@ -180,17 +177,12 @@ const setup = async (dir: string): Promise<number> => {
     if (!live('gh', ['auth', 'login', '--hostname', 'github.com', '--git-protocol', 'https', '--web'])) return 1;
   }
   live('gh', ['auth', 'setup-git']);
+  // Every product's ops server checks GitHub team membership, which needs read:org.
+  if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
+    console.log('\n→ Allowing gh to read your GitHub teams (for eng ops)');
+    if (!live('gh', ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'read:org'])) return 1;
+  }
   if (!(await installGlobals())) return 1;
-  const sshKeyOk = ensureSshKey({
-    keyPath: join(homedir(), '.ssh', 'id_ed25519'),
-    host: hostname(),
-    exists: existsSync,
-    read: (path) => readFileSync(path, 'utf8'),
-    mkdir: (path) => mkdirSync(path, { recursive: true, mode: 0o700 }),
-    run,
-    live: (command, args) => live(command, args),
-    log: (line) => console.log(line),
-  });
 
   mkdirSync(dir, { recursive: true });
   const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
@@ -212,7 +204,7 @@ const setup = async (dir: string): Promise<number> => {
     console.log('');
     await installTheme(dir);
   }
-  return installed && sshKeyOk ? status : 1;
+  return installed ? status : 1;
 };
 
 const update = async (dir: string): Promise<number> => {
@@ -327,18 +319,12 @@ const ops = async (argv: string[]): Promise<number> => {
       rl.setPrompt(prompt);
       rl.prompt();
     });
-  // An interrupt or exit ends any ssh tunnel still open.
-  const interrupted = (): never => (killLiveTunnels(), process.exit(130));
-  process.on('exit', killLiveTunnels);
-  process.on('SIGINT', interrupted);
-  process.on('SIGTERM', interrupted);
-  // In a terminal readline takes Ctrl-C itself, so the process handler above never sees it.
-  rl.on('SIGINT', interrupted);
+  // In a terminal readline takes Ctrl-C itself; without this the input closes but a pending request still runs.
+  rl.on('SIGINT', () => process.exit(130));
   try {
     return await runOps(argv, {
       env: process.env,
       getToken: ghToken,
-      openTunnel: (target) => openTunnel(target, systemTunnelDeps(process.env)),
       ask,
       out: (line) => console.log(line),
       err: (line) => console.error(line),
@@ -347,10 +333,6 @@ const ops = async (argv: string[]): Promise<number> => {
     });
   } finally {
     rl.close();
-    killLiveTunnels();
-    process.off('exit', killLiveTunnels);
-    process.off('SIGINT', interrupted);
-    process.off('SIGTERM', interrupted);
   }
 };
 

@@ -79,3 +79,10 @@ export const formatResults = (results) => ({
     }),
     ok: results.every((r) => r.ok || !r.required),
 });
+// Whether a GitHub token may read team membership, which every product's ops server checks. `headers` is the output
+// of `gh api -i user`; undefined (gh failed) counts as no.
+export const canReadTeams = (headers) => {
+    const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
+    const scopes = line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()) ?? [];
+    return ['read:org', 'write:org', 'admin:org'].some((scope) => scopes.includes(scope));
+};

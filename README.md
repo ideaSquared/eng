@@ -23,11 +23,8 @@ The installer:
 2. installs the `eng` CLI;
 3. runs `eng setup`, which:
    - signs you in to GitHub in your browser (`gh auth login`) and lets git use that sign-in;
+   - lets gh read your GitHub teams (`read:org`), which `eng ops` access is checked against;
    - installs the `ship` (deploys) and `idea` (sanitised logs) CLIs;
-   - creates your SSH key at `~/.ssh/id_ed25519` if you have none (it never replaces an existing one) and adds its
-     public half to your GitHub account, asking gh once for the `admin:public_key` permission. The private key
-     never leaves your machine. An admin grants server access (such as ADS ops) from
-     `https://github.com/<your login>.keys`, so there is no key to copy and paste;
    - clones every ideaSquared repo you have access to into `~/ideasquared` and runs `pnpm install` in each;
    - finishes with `eng doctor`.
 
@@ -86,7 +83,7 @@ The palette lives in `src/theme.ts`.
 
 ```bash
 eng [--production]           # open the eng app (staging unless --production; fixed for the session)
-eng setup [--dir <folder>]   # sign in, install ship and idea, SSH key on GitHub, clone and install every repo
+eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
 eng theme                    # install the ideaSquared terminal skin and prompt
@@ -137,7 +134,8 @@ production deploy still asks you to type the product name.
 ## Ops
 
 `eng ops` drives any product that exposes the [`@ideasquared/ops`](https://github.com/ideaSquared/agent-idea/tree/main/packages/ops)
-contract: creatrgrid, ads (adopt-dont-shop, through an SSH tunnel eng opens itself), and pairflix once it is deployed.
+contract: creatrgrid and ads (adopt-dont-shop) today, pairflix once it is deployed. All of them are plain HTTPS, so
+there is nothing to set up beyond `gh auth login`. For ads, unlocks and history stay in adopt-dont-shop's `pnpm ops`.
 
 ```bash
 eng ops creatrgrid                              # commands, grouped; in a terminal, pick one and answer its fields
@@ -147,8 +145,9 @@ eng ops creatrgrid accounts resync acct_1 --yes --env production --json-output
 eng ops find resync                             # which command does that? searches every product at once
 ```
 
-- It uses your own `gh auth token` (never printed); GitHub decides access, and writes need write access to the
-  product's repo. If gh is not signed in, run `gh auth login` or `eng setup`.
+- It uses your own `gh auth token` (never printed). Access is membership of the product's GitHub team (`creatrgrid`,
+  `pairflix`, `adoptdontshop`), so the token needs `read:org`: `gh auth refresh -s read:org`. If gh is not signed in,
+  run `gh auth login` or `eng setup`.
 - The environment is `ENG_ENV` (`staging` unless the session is production); `--env` overrides it. It is always shown
   in the header line, production in red.
 - A write with a preview shows it first. Staging then asks `Run <id> on <product> staging? [y/N]` (`--yes` skips it).
@@ -158,23 +157,6 @@ eng ops find resync                             # which command does that? searc
   example `ENG_OPS_URL_PAIRFLIX_STAGING=http://localhost:8787/api/ops`. A product with no URL is listed as not
   deployed yet.
 - The Ops item in the eng menu picks a product, then opens the same picker.
-
-### ADS (SSH tunnel)
-
-ADS's ops server only listens on the server's own loopback, so `eng ops ads` opens an SSH tunnel itself, uses it for
-the whole command (catalog, preview, run, the picker, or one `eng ops find`), and closes it when eng finishes, fails or
-is interrupted. No tunnel is left running.
-
-- Run `pnpm ops setup` in adopt-dont-shop once. eng reads the SSH host, user and key it saves per environment in
-  `~/.config/ads-ops/config.json` (`$XDG_CONFIG_HOME/ads-ops/config.json`, or `%APPDATA%\ads-ops\config.json` on
-  Windows). Without it, eng prints one line telling you to run it and exits 1.
-- eng runs the system `ssh` (OpenSSH; Windows 10+ has it) with `-N -L <free local port>:127.0.0.1:<4101|4102>
-  -o ExitOnForwardFailure=yes -o BatchMode=yes`, plus `-i <key>` and `user@host`, and waits for the local port. If
-  it does not come up it says so and suggests running `ssh user@host` once by hand to accept the host key.
-- `staging` and `production` map to ADS's `staging` and `prod`. Access is decided by ADS from your GitHub token and
-  your team membership for that environment; the session lock and production confirmation work as for any product.
-- `ENG_OPS_URL_ADS_<STAGING|PRODUCTION>` skips the tunnel and uses that URL (testing, dev).
-- Unlocks and history stay in `pnpm ops`.
 - In the picker, type a number or a command id to choose it, or type words to filter the list. The matches keep their
   numbers from the whole list, so a number always means the same command; a single match is shown the same way (type
   its number to pick it). Enter on a filtered list shows the whole list again; enter on the whole list quits.
