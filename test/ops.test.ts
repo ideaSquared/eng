@@ -1,5 +1,6 @@
-import { OpsError } from '@ideasquared/ops';
-import type { Catalog, Fetch } from '@ideasquared/ops';
+import type { Fetch } from '../src/vendor/ops/client.ts';
+import { OpsError } from '../src/vendor/ops/contract.ts';
+import type { Catalog } from '../src/vendor/ops/contract.ts';
 import { describe, expect, it } from 'vitest';
 import {
   confirmationFor,
