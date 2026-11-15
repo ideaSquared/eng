@@ -109,5 +109,5 @@ export const formatResults = (results: readonly Result[]): { lines: string[]; ok
 export const canReadTeams = (headers: string | undefined): boolean => {
   const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
   const scopes = line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()) ?? [];
-  return scopes.includes('read:org') || scopes.includes('admin:org');
+  return ['read:org', 'write:org', 'admin:org'].some((scope) => scopes.includes(scope));
 };

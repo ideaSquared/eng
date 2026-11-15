@@ -180,7 +180,7 @@ const setup = async (dir: string): Promise<number> => {
   // Every product's ops server checks GitHub team membership, which needs read:org.
   if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
     console.log('\n→ Allowing gh to read your GitHub teams (for eng ops)');
-    live('gh', ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'read:org']);
+    if (!live('gh', ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'read:org'])) return 1;
   }
   if (!(await installGlobals())) return 1;
 
@@ -319,6 +319,8 @@ const ops = async (argv: string[]): Promise<number> => {
       rl.setPrompt(prompt);
       rl.prompt();
     });
+  // In a terminal readline takes Ctrl-C itself; without this the input closes but a pending request still runs.
+  rl.on('SIGINT', () => process.exit(130));
   try {
     return await runOps(argv, {
       env: process.env,

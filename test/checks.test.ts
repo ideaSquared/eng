@@ -92,8 +92,9 @@ describe('GitHub token scopes', () => {
     expect(canReadTeams(headers)).toBe(true);
   });
 
-  it('accepts admin:org, which includes read:org', () => {
+  it('accepts admin:org and write:org, which include read:org', () => {
     expect(canReadTeams('X-OAuth-Scopes: repo, admin:org\n')).toBe(true);
+    expect(canReadTeams('X-OAuth-Scopes: repo, write:org\n')).toBe(true);
   });
 
   it('says no when read:org is missing or the headers cannot be read', () => {
