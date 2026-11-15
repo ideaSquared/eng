@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from "./app.js";
-import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
+import { BASE_TOOLS, canReadTeams, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
 import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
@@ -16,7 +16,6 @@ import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnviro
 import { colour, plain, runOps } from "./ops.js";
 import { installTheme } from "./skin.js";
 import { ensureSshKey } from "./ssh-key.js";
-import { killLiveTunnels, openTunnel, systemTunnelDeps } from "./tunnel.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
 
@@ -33,9 +32,9 @@ const HELP = `eng: set up and update an ideaSquared developer machine
                                in the picker, type words to filter the list
   eng ops find <words...>      search every product's commands (every word must match) and print how to run them
 
-eng ops covers products that expose the ops contract (creatrgrid, pairflix, ads). ads is reached through an SSH
-tunnel eng opens itself (run \`pnpm ops setup\` in adopt-dont-shop once); unlocks and history stay in \`pnpm ops\`.
-The environment is ENG_ENV (staging unless set); --env overrides it.
+eng ops covers products that expose the ops contract (creatrgrid, pairflix, ads). Access is your GitHub team for
+that product. For ads, unlocks and history stay in \`pnpm ops\`. The environment is ENG_ENV (staging unless set);
+--env overrides it.
 
 In the eng app press / to search every action; in eng shell, find <words...> runs eng ops find and help <words...>
 prints only the help lines matching every word.
@@ -160,6 +159,11 @@ const setup = async (dir) => {
             return 1;
     }
     live('gh', ['auth', 'setup-git']);
+    // Every product's ops server checks GitHub team membership, which needs read:org.
+    if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
+        console.log('\n→ Allowing gh to read your GitHub teams (for eng ops)');
+        live('gh', ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'read:org']);
+    }
     if (!(await installGlobals()))
         return 1;
     const sshKeyOk = ensureSshKey({
@@ -304,18 +308,10 @@ const ops = async (argv) => {
         rl.setPrompt(prompt);
         rl.prompt();
     });
-    // An interrupt or exit ends any ssh tunnel still open.
-    const interrupted = () => (killLiveTunnels(), process.exit(130));
-    process.on('exit', killLiveTunnels);
-    process.on('SIGINT', interrupted);
-    process.on('SIGTERM', interrupted);
-    // In a terminal readline takes Ctrl-C itself, so the process handler above never sees it.
-    rl.on('SIGINT', interrupted);
     try {
         return await runOps(argv, {
             env: process.env,
             getToken: ghToken,
-            openTunnel: (target) => openTunnel(target, systemTunnelDeps(process.env)),
             ask,
             out: (line) => console.log(line),
             err: (line) => console.error(line),
@@ -325,10 +321,6 @@ const ops = async (argv) => {
     }
     finally {
         rl.close();
-        killLiveTunnels();
-        process.off('exit', killLiveTunnels);
-        process.off('SIGINT', interrupted);
-        process.off('SIGTERM', interrupted);
     }
 };
 const runCommand = (command, dir, env, args = []) => {
