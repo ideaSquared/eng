@@ -41,6 +41,23 @@ Run `eng` on its own to open a themed menu over everything: what is live in ever
 sanitised logs and failed runs (`idea`), and setup, update, doctor and the terminal theme. Arrow keys or 1-9 to pick,
 esc to go back, q to quit. Each choice runs the real command in your terminal, then brings you back to the menu.
 
+### Staging or production, fixed per session
+
+`eng` and `eng shell` start in **staging**, with no question. To work in production, start the session that way:
+
+```bash
+eng --production             # or: eng shell --production, or --env production
+```
+
+That shows a full-width red PRODUCTION warning and asks you to type `production`; anything else exits without doing
+anything. `--env staging` is the default spelled out; no other `--env` value is accepted.
+
+The environment is fixed for the whole session: there is no switching, so a stray command cannot hit the wrong one.
+Deploy and Redeploy in the menu go product, then straight to `ship deploy <product> <session env>`; Logs runs
+`idea logs <project> --env <session env>`. The menu border, title and a PRODUCTION (or staging) badge show where you
+are, and the production colours are red. `eng` exports `ENG_ENV=staging|production` so ship, idea and `eng ops`
+inherit it. ship still asks you to type the product name for a production deploy; eng never adds `--yes`.
+
 ## The terminal skin
 
 `eng theme` (setup offers it too) installs the ideaSquared look:
@@ -59,12 +76,12 @@ The palette lives in `src/theme.ts`.
 ## Commands
 
 ```bash
-eng                          # open the eng app
+eng [--production]           # open the eng app (staging unless --production; fixed for the session)
 eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
 eng theme                    # install the ideaSquared terminal skin and prompt
-eng shell                    # a prompt for short commands: deploy, logs, runs, ops
+eng shell [--production]     # a prompt for short commands: deploy, logs, runs, ops
 ```
 
 - Repos live in `~/ideasquared`. `eng setup --dir <folder>` uses another folder and remembers it
@@ -78,8 +95,8 @@ eng shell                    # a prompt for short commands: deploy, logs, runs, 
 
 ## The shell
 
-`eng shell` (or Shell in the menu) opens a prompt that shows the current environment, e.g. `◆ staging › `, so you
-type short commands without the tool prefix:
+`eng shell` (or Shell in the menu) opens a prompt that shows the session's environment, e.g. `◆ staging › `
+(red in production), so you type short commands without the tool prefix:
 
 | You type                          | It runs                                  |
 | --------------------------------- | ---------------------------------------- |
@@ -92,10 +109,13 @@ type short commands without the tool prefix:
 | `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
 | `doctor`, `update`, `theme`       | the eng command of that name             |
 | `ship <...>`, `idea <...>`        | that tool, exactly as typed              |
-| `env staging` / `env production`  | switch the current environment (starts as staging) |
+| `env`                             | show the session's environment (it cannot be switched) |
 | `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
 
-When a deploy, redeploy or rollback names no environment, the current one is used. Tab completes commands and product
+When a deploy, redeploy, rollback or logs line names no environment, the session's is used. If it names a different
+one it is refused with a message, never overridden (`ship ...` and `idea ...` lines too, when they name the other
+environment as a word or `--env`); `env production` says the session is fixed and how to restart
+with `--production`. Tab completes commands and product
 names, and the up arrow recalls earlier lines. An unknown word runs nothing. The shell never adds `--yes`: a
 production deploy still asks you to type the product name.
 
