@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from './app.tsx';
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS, type Result, type Run } from './checks.ts';
@@ -11,9 +12,9 @@ import type { Action } from './menu.ts';
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
-import { createInterface } from 'node:readline';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment, type Environment } from './session.ts';
+import { colour, plain, runOps } from './ops.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
 
@@ -25,6 +26,12 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
+  eng ops                      list the products whose ops commands eng can run
+  eng ops <product> [<group> <name> [args...]] [--env staging|production] [--yes] [--json-output]
+                               browse and run a product's ops commands (writes preview, then confirm)
+
+eng ops covers products that expose the ops contract (creatrgrid, pairflix). adopt-dont-shop keeps its own
+\`pnpm ops\` and is not part of it. The environment is ENG_ENV (staging unless set); --env overrides it.
 
 The app and the shell start in staging. --production (or --env production) starts in production after a warning and
 you typing production; --env staging is the default spelled out. The environment is fixed for the session.
@@ -276,7 +283,53 @@ const shell = (env: Environment): Promise<number> =>
     ask();
   });
 
-const runCommand = (command: string, dir: string, env: Environment): Promise<number> | number | undefined => {
+
+// `gh auth token`, captured and never printed. undefined when gh is missing or not signed in.
+const ghToken = (): string | undefined => run('gh', ['auth', 'token']) || undefined;
+
+// One readline for the whole run: lines are queued, so piped input works and a closed input answers undefined
+// instead of hanging. Prompts go to stderr, so stdout stays the result.
+const ops = async (argv: string[]): Promise<number> => {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  const lines: string[] = [];
+  const waiting: Array<(line: string | undefined) => void> = [];
+  let closed = false;
+  rl.on('line', (line) => (waiting.shift() ?? ((l) => lines.push(l ?? '')))(line));
+  rl.on('close', () => {
+    closed = true;
+    waiting.splice(0).forEach((resolve) => resolve(undefined));
+  });
+  const ask = (prompt: string): Promise<string | undefined> =>
+    new Promise((resolve) => {
+      const queued = lines.shift();
+      if (queued !== undefined) return resolve(queued);
+      if (closed) return resolve(undefined);
+      waiting.push(resolve);
+      rl.setPrompt(prompt);
+      rl.prompt();
+    });
+  try {
+    return await runOps(argv, {
+      env: process.env,
+      getToken: ghToken,
+      ask,
+      out: (line) => console.log(line),
+      err: (line) => console.error(line),
+      interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+      paint: process.stdout.isTTY && !process.env.NO_COLOR ? colour : plain,
+    });
+  } finally {
+    rl.close();
+  }
+};
+
+const runCommand = (
+  command: string,
+  dir: string,
+  env: Environment,
+  args: string[] = [],
+): Promise<number> | number | undefined => {
+  if (command === 'ops') return ops(args);
   if (command === 'setup') return setup(dir);
   if (command === 'update') return update(dir);
   if (command === 'doctor') return doctor(dir);
@@ -292,7 +345,7 @@ const runAction = async (action: Extract<Action, { kind: 'run' }>, env: Environm
   // Ink unrefs stdin when the menu closes; take it back so a command can ask questions without Node exiting.
   process.stdin.ref();
   if (action.command === 'eng') {
-    await runCommand(action.args[0] ?? '', reposDir(), env);
+    await runCommand(action.args[0] ?? '', reposDir(), env, action.args.slice(1));
     return;
   }
   // ship and idea read the same terminal. Hand it over cooked (echo on) and with no read pending in this
@@ -342,15 +395,19 @@ const confirmProduction = (): Promise<boolean> =>
   });
 
 const main = async (): Promise<number> => {
-  const { values, positionals } = parseArgs({
-    allowPositionals: true,
-    options: {
-      dir: { type: 'string' },
-      help: { type: 'boolean', short: 'h' },
-      production: { type: 'boolean' },
-      env: { type: 'string' },
-    },
-  });
+  // ops takes its own options (--env, --yes and each command's fields), which parseArgs here would reject.
+  const isOps = process.argv[2] === 'ops';
+  const { values, positionals } = isOps
+    ? { values: { dir: undefined, help: false, production: undefined, env: undefined }, positionals: ['ops'] }
+    : parseArgs({
+        allowPositionals: true,
+        options: {
+          dir: { type: 'string' },
+          help: { type: 'boolean', short: 'h' },
+          production: { type: 'boolean' },
+          env: { type: 'string' },
+        },
+      });
   const [command] = positionals;
   const startup = resolveEnvironment(values);
   if (!startup.ok) {
@@ -366,7 +423,8 @@ const main = async (): Promise<number> => {
   }
   // The warning comes before anything that can reach a product. Anything but production exits quietly.
   if (!values.help && env === 'production' && !(await confirmProduction())) return 0;
-  process.env.ENG_ENV = env;
+  // eng ops keeps the session it was started from: ENG_ENV is only set by an eng that resolved its own flags.
+  if (!isOps) process.env.ENG_ENV = env;
   if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch(env);
   if (values.help || !command) {
     console.log(HELP);
@@ -374,7 +432,7 @@ const main = async (): Promise<number> => {
   }
   const dir = values.dir ? resolve(values.dir) : reposDir();
   if (values.dir && command === 'setup') saveConfig({ dir });
-  const result = runCommand(command, dir, env);
+  const result = runCommand(command, dir, env, isOps ? process.argv.slice(3) : []);
   if (result !== undefined) return result;
   console.log(`Unknown command: ${command}\n\n${HELP}`);
   return 1;

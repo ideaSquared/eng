@@ -79,6 +79,14 @@ describe('the eng app', () => {
     expect(lastFrame()).toContain('PRODUCTION');
   });
 
+  it('walks to Ops: product only, the session environment applies', async () => {
+    const { stdin, chosen, lastFrame } = open();
+    await press(stdin, '7');
+    expect(lastFrame()).toContain('Ops for which product?');
+    await press(stdin, '1');
+    expect(chosen).toEqual([{ kind: 'run', command: 'eng', args: ['ops', 'creatrgrid'] }]);
+  });
+
   it('goes back with esc', async () => {
     const { stdin, lastFrame } = open();
     await press(stdin, '4');

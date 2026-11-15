@@ -29,6 +29,7 @@
     "src"
   ],
   "dependencies": {
+    "@ideasquared/ops": "https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz",
     "ink": "5.2.1",
     "react": "18.3.1"
   }
