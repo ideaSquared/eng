@@ -10,6 +10,8 @@ import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS } from ".
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
 import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
+import { createInterface } from 'node:readline';
+import { BANNER, complete, INITIAL_STATE, prompt, route } from "./shell.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
@@ -19,6 +21,7 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
+  eng shell                    a prompt for short commands: deploy, logs, runs, ops (type help inside)
 
 Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.
 Every run first updates eng, ship and idea if GitHub has newer versions. ENG_NO_UPDATE=1 turns that off.`;
@@ -187,6 +190,69 @@ const update = async (dir) => {
     const status = doctor(dir);
     return globalsOk && reposOk ? status : 1;
 };
+const OWN_COMMANDS = ['update', 'doctor', 'theme'];
+// Runs one routed command from the shell. eng's own commands run in this process, as in the menu; anything else
+// (ship, idea, eng ops) is a child. The terminal is handed over for both, so they can ask questions.
+const runFromShell = async (command, args) => {
+    releaseTerminal(process.stdin);
+    if (command === 'eng' && OWN_COMMANDS.includes(args[0] ?? '')) {
+        await runCommand(args[0] ?? '', reposDir());
+        return;
+    }
+    if (!live(command, args))
+        console.log(paint(PALETTE.warning, `! ${command} did not finish cleanly. Run eng doctor if it is missing.`));
+};
+const shell = () => new Promise((done) => {
+    let state = INITIAL_STATE;
+    const rl = createInterface({ input: process.stdin, output: process.stdout, completer: complete, prompt: prompt(state) });
+    const ask = () => {
+        rl.setPrompt(prompt(state));
+        rl.prompt();
+    };
+    // Lines are handled one at a time: a command can be slow, and typed-ahead lines wait their turn.
+    let queue = Promise.resolve();
+    let closed = false;
+    const handle = async (line) => {
+        const outcome = route(line, state);
+        if (outcome.kind === 'exit') {
+            rl.close();
+            return;
+        }
+        if (outcome.kind === 'env')
+            state = { env: outcome.env };
+        if (outcome.kind === 'env' || outcome.kind === 'message')
+            console.log(paint(PALETTE.muted, outcome.text));
+        if (outcome.kind === 'run') {
+            rl.pause();
+            await runFromShell(outcome.command, outcome.args);
+            // readline needs the terminal raw (tab, history) and reading again; reclaimTerminal only restarts the read,
+            // and releaseTerminal turned raw mode off for the child.
+            process.stdin.ref();
+            if (process.stdin.isTTY)
+                process.stdin.setRawMode(true);
+            reclaimTerminal(process.stdin);
+            rl.resume();
+        }
+        if (!closed)
+            ask();
+    };
+    rl.on('line', (line) => {
+        queue = queue.then(() => handle(line));
+    });
+    rl.on('SIGINT', () => {
+        process.stdout.write('\n');
+        ask();
+    });
+    rl.on('close', () => {
+        closed = true;
+        void queue.then(() => {
+            process.stdout.write('\n');
+            done(0);
+        });
+    });
+    console.log(BANNER);
+    ask();
+});
 const runCommand = (command, dir) => {
     if (command === 'setup')
         return setup(dir);
@@ -196,6 +262,8 @@ const runCommand = (command, dir) => {
         return doctor(dir);
     if (command === 'theme')
         return installTheme(dir);
+    if (command === 'shell')
+        return shell();
     return undefined;
 };
 // Each choice runs with the terminal attached. eng's own commands run in this process: an update replaces the

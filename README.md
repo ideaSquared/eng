@@ -64,6 +64,7 @@ eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
 eng theme                    # install the ideaSquared terminal skin and prompt
+eng shell                    # a prompt for short commands: deploy, logs, runs, ops
 ```
 
 - Repos live in `~/ideasquared`. `eng setup --dir <folder>` uses another folder and remembers it
@@ -74,6 +75,29 @@ eng theme                    # install the ideaSquared terminal skin and prompt
 - Every time you run `eng`, it first checks GitHub (a quick `git ls-remote`) and updates eng, ship and idea if
   any is newer, then carries on. Offline, it skips the check. `ENG_NO_UPDATE=1` turns it off.
 - Run `eng update` whenever you start work after a break, to pull your repos too. It is safe to run any time.
+
+## The shell
+
+`eng shell` (or Shell in the menu) opens a prompt that shows the current environment, e.g. `◆ staging › `, so you
+type short commands without the tool prefix:
+
+| You type                          | It runs                                  |
+| --------------------------------- | ---------------------------------------- |
+| `deploy ads staging`              | `ship deploy ads staging`                |
+| `redeploy ads staging`            | `ship deploy ads staging --redeploy`     |
+| `rollback ads [env]`              | `ship rollback ads <env>`                |
+| `status`                          | `ship status`                            |
+| `logs ads`                        | `idea logs ads --env <current env>`      |
+| `runs ads`                        | `idea runs ads --failed`                 |
+| `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
+| `doctor`, `update`, `theme`       | the eng command of that name             |
+| `ship <...>`, `idea <...>`        | that tool, exactly as typed              |
+| `env staging` / `env production`  | switch the current environment (starts as staging) |
+| `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
+
+When a deploy, redeploy or rollback names no environment, the current one is used. Tab completes commands and product
+names, and the up arrow recalls earlier lines. An unknown word runs nothing. The shell never adds `--yes`: a
+production deploy still asks you to type the product name.
 
 ## Then
 

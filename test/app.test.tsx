@@ -65,6 +65,13 @@ describe('the eng app', () => {
     expect(lastFrame()).not.toContain('Logs for');
   });
 
+  it('opens the eng shell from the Shell item', async () => {
+    const { stdin, chosen, lastFrame } = open();
+    expect(lastFrame()).toContain('Shell');
+    await press(stdin, '6');
+    expect(chosen).toEqual([{ kind: 'run', command: 'eng', args: ['shell'] }]);
+  });
+
   it('quits with q', async () => {
     const { stdin, chosen } = open();
     await press(stdin, 'q');
