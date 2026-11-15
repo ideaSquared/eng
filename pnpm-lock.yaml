@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ideasquared/ops':
+        specifier: https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz
+        version: https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz
       ink:
         specifier: 5.2.1
         version: 5.2.1(@types/react@18.3.31)(react@18.3.1)
@@ -45,6 +48,10 @@ packages:
 
   '@emnapi/wasi-threads@2.2.0':
     resolution: {integrity: sha512-JP7OYH38Q7+pyTAe14raZHLQIK7BDKbdwji+Xi3pcd/6QkJYQH3SX4wu6EplGrGJWRepoNzedfm0G3B9Z4e9Rw==}
+
+  '@ideasquared/ops@https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz':
+    resolution: {integrity: sha512-h/Caj9mrTc/heN7e3P50PzEoZdbSGF5/987L/DlwBa00KgO7sIaYl2ZtARdz0JmXCLBufj+tgh8kV4fWBdXrJg==, tarball: https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz}
+    version: 0.1.1
 
   '@jridgewell/resolve-uri@3.1.3':
     resolution: {integrity: sha512-lhTtjtoEArWBjismtfS761S9Hlyn+nIZqOZVYoZ1Xn82PMNMVnk+jj/NhC4fAXGTs7ydONcJiR5vyQBTMDu27g==}
@@ -648,6 +655,9 @@ packages:
   yoga-layout@3.2.1:
     resolution: {integrity: sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
 snapshots:
 
   '@alcalzone/ansi-tokenize@0.1.3':
@@ -670,6 +680,10 @@ snapshots:
     dependencies:
       tslib: 2.9.1
     optional: true
+
+  '@ideasquared/ops@https://github.com/ideaSquared/agent-idea/releases/download/ops-v0.1.1/ideasquared-ops-0.1.1.tgz':
+    dependencies:
+      zod: 4.6.7
 
   '@jridgewell/resolve-uri@3.1.3': {}
 
@@ -1105,3 +1119,5 @@ snapshots:
   ws@8.23.0: {}
 
   yoga-layout@3.2.1: {}
+
+  zod@4.6.7: {}

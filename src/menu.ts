@@ -1,4 +1,5 @@
 import type { Environment } from './session.ts';
+import { deployedProducts } from './ops.ts';
 
 // What the eng app offers. Pure data: the app walks it, and the CLI runs the action it ends on.
 export type Action = { kind: 'run'; command: 'eng' | 'ship' | 'idea'; args: string[] } | { kind: 'quit' };
@@ -42,6 +43,11 @@ export const homeMenu = (env: Environment): Menu => ({
       next: pick('Failed runs for', IDEA_PROJECTS, (p) => run('idea', ['runs', p, '--failed'])),
     },
     { label: 'Shell', hint: `a prompt for deploy, logs, runs and ops (${env})`, next: run('eng', ['shell']) },
+    {
+      label: 'Ops',
+      hint: 'run a product\'s ops commands',
+      next: pick('Ops for which product?', deployedProducts(process.env).map((product) => product.name), (p) => run('eng', ['ops', p])),
+    },
     { label: 'Doctor', hint: 'check what is missing or out of date', next: run('eng', ['doctor']) },
     { label: 'Update', hint: 'update the CLIs and pull every clean repo', next: run('eng', ['update']) },
     { label: 'Setup', hint: 'sign in, install and clone everything', next: run('eng', ['setup']) },

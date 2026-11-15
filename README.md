@@ -82,6 +82,9 @@ eng update                   # update ship, idea and eng; pull every clean repo 
 eng doctor                   # check what is missing or out of date
 eng theme                    # install the ideaSquared terminal skin and prompt
 eng shell [--production]     # a prompt for short commands: deploy, logs, runs, ops
+eng ops                      # list the products eng can run ops commands for, and their environments
+eng ops <product>            # list a product's ops commands (a numbered picker in a terminal)
+eng ops <product> <group> <name> [args...] [--env staging|production] [--yes] [--json-output]
 ```
 
 - Repos live in `~/ideasquared`. `eng setup --dir <folder>` uses another folder and remembers it
@@ -118,6 +121,30 @@ environment as a word or `--env`); `env production` says the session is fixed an
 with `--production`. Tab completes commands and product
 names, and the up arrow recalls earlier lines. An unknown word runs nothing. The shell never adds `--yes`: a
 production deploy still asks you to type the product name.
+
+## Ops
+
+`eng ops` drives any product that exposes the [`@ideasquared/ops`](https://github.com/ideaSquared/agent-idea/tree/main/packages/ops)
+contract: creatrgrid today, pairflix once it is deployed. adopt-dont-shop is not in it: it keeps its own `pnpm ops`.
+
+```bash
+eng ops creatrgrid                              # commands, grouped; in a terminal, pick one and answer its fields
+eng ops creatrgrid accounts list                # a read runs and prints (accounts.list works too)
+eng ops creatrgrid accounts resync acct_1       # a write previews, asks, then runs
+eng ops creatrgrid accounts resync acct_1 --yes --env production --json-output
+```
+
+- It uses your own `gh auth token` (never printed); GitHub decides access, and writes need write access to the
+  product's repo. If gh is not signed in, run `gh auth login` or `eng setup`.
+- The environment is `ENG_ENV` (`staging` unless the session is production); `--env` overrides it. It is always shown
+  in the header line, production in red.
+- A write with a preview shows it first. Staging then asks `Run <id> on <product> staging? [y/N]` (`--yes` skips it).
+  Production asks you to type the product name, and `--yes` never skips that. A write with no preview says so first.
+- `--json-output` prints the raw JSON result on stdout (header and notes go to stderr).
+- Product URLs are in `src/ops.ts`. Point one anywhere, with no release, via `ENG_OPS_URL_<PRODUCT>_<ENV>`, for
+  example `ENG_OPS_URL_PAIRFLIX_STAGING=http://localhost:8787/api/ops`. A product with no URL is listed as not
+  deployed yet.
+- The Ops item in the eng menu picks a product, then opens the same picker.
 
 ## Then
 
