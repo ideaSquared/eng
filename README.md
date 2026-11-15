@@ -133,7 +133,7 @@ production deploy still asks you to type the product name.
 ## Ops
 
 `eng ops` drives any product that exposes the [`@ideasquared/ops`](https://github.com/ideaSquared/agent-idea/tree/main/packages/ops)
-contract: creatrgrid today, pairflix once it is deployed. adopt-dont-shop is not in it: it keeps its own `pnpm ops`.
+contract: creatrgrid, ads (adopt-dont-shop, through an SSH tunnel eng opens itself), and pairflix once it is deployed.
 
 ```bash
 eng ops creatrgrid                              # commands, grouped; in a terminal, pick one and answer its fields
@@ -154,6 +154,23 @@ eng ops find resync                             # which command does that? searc
   example `ENG_OPS_URL_PAIRFLIX_STAGING=http://localhost:8787/api/ops`. A product with no URL is listed as not
   deployed yet.
 - The Ops item in the eng menu picks a product, then opens the same picker.
+
+### ADS (SSH tunnel)
+
+ADS's ops server only listens on the server's own loopback, so `eng ops ads` opens an SSH tunnel itself, uses it for
+the whole command (catalog, preview, run, the picker, or one `eng ops find`), and closes it when eng finishes, fails or
+is interrupted. No tunnel is left running.
+
+- Run `pnpm ops setup` in adopt-dont-shop once. eng reads the SSH host, user and key it saves per environment in
+  `~/.config/ads-ops/config.json` (`$XDG_CONFIG_HOME/ads-ops/config.json`, or `%APPDATA%\ads-ops\config.json` on
+  Windows). Without it, eng prints one line telling you to run it and exits 1.
+- eng runs the system `ssh` (OpenSSH; Windows 10+ has it) with `-N -L <free local port>:127.0.0.1:<4101|4102>
+  -o ExitOnForwardFailure=yes -o BatchMode=yes`, plus `-i <key>` and `user@host`, and waits for the local port. If
+  it does not come up it says so and suggests running `ssh user@host` once by hand to accept the host key.
+- `staging` and `production` map to ADS's `staging` and `prod`. Access is decided by ADS from your GitHub token and
+  your team membership for that environment; the session lock and production confirmation work as for any product.
+- `ENG_OPS_URL_ADS_<STAGING|PRODUCTION>` skips the tunnel and uses that URL (testing, dev).
+- Unlocks and history stay in `pnpm ops`.
 - In the picker, type a number or a command id to choose it, or type words to filter the list. The matches keep their
   numbers from the whole list, so a number always means the same command; a single match is shown the same way (type
   its number to pick it). Enter on a filtered list shows the whole list again; enter on the whole list quits.

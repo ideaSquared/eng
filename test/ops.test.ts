@@ -23,11 +23,14 @@ import {
   runLine,
   runOps,
   searchWords,
+  resolveEndpoint,
   type OpsDeps,
 } from '../src/ops.ts';
+import { TunnelError, type TunnelTarget } from '../src/tunnel.ts';
 
 const creatrgrid = OPS_PRODUCTS[0]!;
 const pairflix = OPS_PRODUCTS[1]!;
+const ads = OPS_PRODUCTS[2]!;
 
 describe('the product registry', () => {
   it('knows creatrgrid in both environments', () => {
@@ -47,11 +50,12 @@ describe('the product registry', () => {
   });
 
   it('lists only products with a URL as deployed, and says pairflix is not deployed yet', () => {
-    expect(deployedProducts({}).map((p) => p.name)).toEqual(['creatrgrid']);
-    expect(deployedProducts({ ENG_OPS_URL_PAIRFLIX_STAGING: 'http://x' }).map((p) => p.name)).toEqual(['creatrgrid', 'pairflix']);
+    expect(deployedProducts({}).map((p) => p.name)).toEqual(['creatrgrid', 'ads']);
+    expect(deployedProducts({ ENG_OPS_URL_PAIRFLIX_STAGING: 'http://x' }).map((p) => p.name)).toEqual(['creatrgrid', 'pairflix', 'ads']);
     const text = formatProducts({}).join('\n');
     expect(text).toContain('not deployed yet');
-    expect(text).toContain('adopt-dont-shop keeps its own `pnpm ops`');
+    expect(text).toContain('ads         staging, production (SSH tunnel)');
+    expect(text).toContain('run `pnpm ops setup` in adopt-dont-shop once');
   });
 });
 
@@ -220,9 +224,10 @@ const CATALOG: Catalog = {
   ],
 };
 
-type Harness = { deps: OpsDeps; out: string[]; err: string[]; asked: string[]; calls: Array<{ path: string; auth: string | null; body?: unknown }> };
+type Harness = { deps: OpsDeps; tunnels: { opened: TunnelTarget[]; closed: number }; out: string[]; err: string[]; asked: string[]; calls: Array<{ path: string; auth: string | null; body?: unknown }> };
 
-const harness = (answers: Array<string | undefined>, options: { token?: string | undefined; env?: Record<string, string>; interactive?: boolean; failWith?: Response } = {}): Harness => {
+const harness = (answers: Array<string | undefined>, options: { token?: string | undefined; env?: Record<string, string>; interactive?: boolean; failWith?: Response; tunnelError?: Error } = {}): Harness => {
+  const tunnels = { opened: [] as TunnelTarget[], closed: 0 };
   const out: string[] = [];
   const err: string[] = [];
   const asked: string[] = [];
@@ -242,6 +247,11 @@ const harness = (answers: Array<string | undefined>, options: { token?: string |
   const deps: OpsDeps = {
     env: options.env ?? { ENG_OPS_URL_CREATRGRID_STAGING: 'http://ops.test/ops', ENG_OPS_URL_CREATRGRID_PRODUCTION: 'http://ops.test/prod' },
     fetch,
+    openTunnel: async (target) => {
+      tunnels.opened.push(target);
+      if (options.tunnelError) throw options.tunnelError;
+      return { url: 'http://tunnel.test/ops/v1', close: () => void (tunnels.closed += 1) };
+    },
     getToken: () => ('token' in options ? options.token : 'secret-token'),
     ask: async (prompt) => {
       asked.push(prompt);
@@ -252,7 +262,7 @@ const harness = (answers: Array<string | undefined>, options: { token?: string |
     interactive: options.interactive ?? false,
     paint: plain,
   };
-  return { deps, out, err, asked, calls };
+  return { deps, tunnels, out, err, asked, calls };
 };
 
 const runCalls = (h: Harness) => h.calls.filter((c) => c.path.endsWith('/invoke')).map((c) => (c.body as { mode: string }).mode);
@@ -488,7 +498,7 @@ describe('eng ops find', () => {
       return String(input).includes('/pairflix/') ? Response.json(PAIRFLIX) : base!(input, init);
     };
     expect(await runOps(['find', 'RESYNC'], h.deps)).toBe(0);
-    expect(urls.sort()).toEqual(['http://ops.test/creatrgrid/catalog', 'http://ops.test/pairflix/catalog']);
+    expect(urls.sort()).toEqual(['http://ops.test/creatrgrid/catalog', 'http://ops.test/pairflix/catalog', 'http://tunnel.test/ops/v1/catalog']);
     const text = h.out.join('\n');
     expect(text.indexOf('creatrgrid')).toBeLessThan(text.indexOf('pairflix'));
     expect(text).toContain('eng ops creatrgrid accounts resync <accountId>');
@@ -550,5 +560,82 @@ describe('the picker filter', () => {
     const h = harness([''], { interactive: true });
     expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
     expect(h.asked).toHaveLength(1);
+  });
+});
+
+describe('ads through an SSH tunnel', () => {
+  it('registers ads with staging and production tunnel targets, production mapped to prod', () => {
+    expect(resolveEndpoint(ads, 'staging', {})).toEqual({
+      kind: 'tunnel',
+      target: { label: 'ADS staging', settingsKey: 'staging', remotePort: 4101, path: '/ops/v1' },
+    });
+    expect(resolveEndpoint(ads, 'production', {})).toMatchObject({ kind: 'tunnel', target: { settingsKey: 'prod', remotePort: 4102 } });
+  });
+
+  it('lets ENG_OPS_URL_ADS_<ENV> override the tunnel', () => {
+    expect(resolveEndpoint(ads, 'staging', { ENG_OPS_URL_ADS_STAGING: 'http://localhost:9/ops/v1' })).toEqual({ kind: 'url', url: 'http://localhost:9/ops/v1' });
+    expect(resolveEndpoint(ads, 'production', { ENG_OPS_URL_ADS_STAGING: 'http://localhost:9' })?.kind).toBe('tunnel');
+  });
+
+  it('opens the tunnel for the environment, uses its URL for the whole run, and closes it after', async () => {
+    const h = harness([]);
+    expect(await runOps(['ads', 'accounts', 'list', '--env', 'production', '--yes'], h.deps)).toBe(0);
+    expect(h.tunnels.opened).toHaveLength(1);
+    expect(h.tunnels.opened[0]?.settingsKey).toBe('prod');
+    expect(h.tunnels.closed).toBe(1);
+    expect(h.calls.map((c) => c.path)).toEqual(['/ops/v1/catalog', '/ops/v1/invoke']);
+    expect(h.calls[0]?.auth).toBe('Bearer secret-token');
+  });
+
+  it('closes the tunnel when a command fails, and when the user aborts', async () => {
+    const failing = harness([], { failWith: Response.json({ error: { code: 'forbidden', message: 'no' } }, { status: 403 }) });
+    expect(await runOps(['ads', 'accounts.list'], failing.deps)).toBe(1);
+    expect(failing.err).toEqual(['You need to be in the ADS ops GitHub team for this environment']);
+    expect(failing.tunnels.closed).toBe(1);
+    const aborted = harness(['n']);
+    expect(await runOps(['ads', 'accounts.resync', 'acct_1'], aborted.deps)).toBe(1);
+    expect(aborted.tunnels.closed).toBe(1);
+  });
+
+  it('closes the picker session tunnel once at the end', async () => {
+    const h = harness([''], { interactive: true });
+    expect(await runOps(['ads'], h.deps)).toBe(0);
+    expect(h.tunnels).toMatchObject({ closed: 1 });
+    expect(h.tunnels.opened).toHaveLength(1);
+  });
+
+  it('prints the tunnel error as one line and exits 1, without calling anything', async () => {
+    const h = harness([], { tunnelError: new TunnelError('No saved SSH settings for ADS staging. Run `pnpm ops setup` in adopt-dont-shop once.') });
+    expect(await runOps(['ads'], h.deps)).toBe(1);
+    expect(h.err).toEqual(['No saved SSH settings for ADS staging. Run `pnpm ops setup` in adopt-dont-shop once.']);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('wraps an unexpected tunnel failure without leaking details beyond its message', async () => {
+    const h = harness([], { tunnelError: new Error('spawn blew up') });
+    expect(await runOps(['ads'], h.deps)).toBe(1);
+    expect(h.err).toEqual(['Could not open the SSH tunnel: spawn blew up']);
+  });
+
+  it('skips the tunnel when the override URL is set', async () => {
+    const h = harness([], { env: { ENG_OPS_URL_ADS_STAGING: 'http://ops.test/ads' } });
+    expect(await runOps(['ads', 'accounts.list'], h.deps)).toBe(0);
+    expect(h.tunnels.opened).toEqual([]);
+    expect(h.calls[0]?.path).toBe('/ads/catalog');
+  });
+
+  it('is searched by eng ops find, opening and closing its tunnel for that call', async () => {
+    const h = harness([], { env: {} });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.tunnels.opened.map((t) => t.settingsKey)).toEqual(['staging']);
+    expect(h.tunnels.closed).toBe(1);
+    expect(h.out.join('\n')).toContain('eng ops ads accounts resync <accountId> --env staging');
+  });
+
+  it('prints one muted line for an ads tunnel that fails in find, and the others still run', async () => {
+    const h = harness([], { tunnelError: new TunnelError('The SSH tunnel did not come up within 20s.') });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.err).toEqual(['ads: The SSH tunnel did not come up within 20s.']);
+    expect(h.out.join('\n')).toContain('eng ops creatrgrid accounts resync <accountId>');
   });
 });
