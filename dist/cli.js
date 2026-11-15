@@ -9,7 +9,7 @@ import { chooseAction } from "./app.js";
 import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
-import { spawn } from "./exec.js";
+import { releaseTerminal, spawn } from "./exec.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
@@ -208,6 +208,9 @@ const runAction = async (action) => {
         await runCommand(action.args[0] ?? '', reposDir());
         return;
     }
+    // ship and idea read the same terminal. Hand it over cooked (echo on) and with no read pending in this
+    // process: on Windows a pending console read here swallows the keys typed at their prompts.
+    releaseTerminal(process.stdin);
     if (!live(action.command, action.args))
         console.log(`\n! ${action.command} did not finish cleanly. Run eng doctor if it is missing.`);
 };
