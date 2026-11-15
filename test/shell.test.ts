@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { complete, COMMAND_WORDS, prompt, route, type ShellState } from '../src/shell.ts';
+import { complete, COMMAND_WORDS, HELP_TEXT, prompt, route, type ShellState } from '../src/shell.ts';
 
 const staging: ShellState = { env: 'staging' };
 const production: ShellState = { env: 'production' };
@@ -239,5 +239,40 @@ describe('the prompt', () => {
     expect(prompt(production)).toContain('248;113;113');
     expect(prompt(staging)).toContain('34;211;238');
     expect(prompt(staging)).not.toContain('248;113;113');
+  });
+});
+
+describe('searching from the shell', () => {
+  it('routes find to eng ops find with the words', () => {
+    expect(route('find resync', staging)).toEqual(run('eng', 'ops', 'find', 'resync'));
+    expect(route('FIND creator lookup', production)).toEqual(run('eng', 'ops', 'find', 'creator', 'lookup'));
+  });
+
+  it('needs words after find, and keeps the plain-word rule', () => {
+    expect(route('find', staging)).toEqual({ kind: 'message', text: 'usage: find <words...>' });
+    expect(route('find a;b', staging).kind).toBe('message');
+    expect(route('find "x"', staging)).toMatchObject({ kind: 'message', text: expect.stringContaining('Refused') });
+  });
+
+  it('prints the whole help for plain help', () => {
+    expect(route('help', staging)).toEqual({ kind: 'message', text: HELP_TEXT });
+  });
+
+  it('help <words> prints only the lines containing every word, in any case', () => {
+    const outcome = route('help LOGS idea', staging);
+    expect(outcome).toEqual({ kind: 'message', text: expect.stringContaining('idea logs') });
+    const lines = outcome.kind === 'message' ? outcome.text.split('\n') : [];
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.every((l) => /logs/i.test(l) && /idea/i.test(l))).toBe(true);
+    expect(route('help find', staging)).toMatchObject({ text: expect.stringContaining('eng ops find') });
+  });
+
+  it('help <words> with no match says so', () => {
+    expect(route('help zzzz', staging)).toEqual({ kind: 'message', text: "No help lines match 'zzzz'. Try help." });
+  });
+
+  it('completes find', () => {
+    expect(complete('fi')).toEqual([['find '], 'fi']);
+    expect(COMMAND_WORDS).toContain('find');
   });
 });

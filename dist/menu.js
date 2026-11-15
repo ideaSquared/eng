@@ -44,3 +44,14 @@ export const homeMenu = (env) => ({
     ],
 });
 export const isMenu = (next) => 'items' in next;
+export const SEARCH_SEPARATOR = ' › ';
+export const searchIndex = (menu, trail = []) => menu.items.flatMap((item) => {
+    const path = [...trail, item.label];
+    return isMenu(item.next) ? searchIndex(item.next, path) : [{ label: path.join(SEARCH_SEPARATOR), action: item.next }];
+});
+// Every typed word must appear in the label, in any case. No words matches everything. Menu order is kept.
+export const searchMenu = (index, text) => {
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+    return index.filter((entry) => words.every((word) => entry.label.toLowerCase().includes(word)));
+};
+export const describeAction = (action) => action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng';

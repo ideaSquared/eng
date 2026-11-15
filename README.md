@@ -39,7 +39,12 @@ Before you start, ask for:
 
 Run `eng` on its own to open a themed menu over everything: what is live in every product (`ship status`), deploys,
 sanitised logs and failed runs (`idea`), and setup, update, doctor and the terminal theme. Arrow keys or 1-9 to pick,
-esc to go back, q to quit. Each choice runs the real command in your terminal, then brings you back to the menu.
+esc to go back, q to quit, `/` to search. Each choice runs the real command in your terminal, then brings you back to the menu.
+
+Press `/` to search: a line opens at the bottom, and typing filters every action in the menu by its path, for example
+`Deploy › ads`, `Logs › creatrgrid`, `Ops › creatrgrid` or `Doctor`. A match needs every word you typed (any case). The
+top 8 are shown live; up/down moves, enter runs the selected one, esc closes the search. While the search is open every
+key (q and the digits too) goes to the search text; with it closed, 1-9 and q work as before.
 
 ### Staging or production, fixed per session
 
@@ -85,6 +90,7 @@ eng shell [--production]     # a prompt for short commands: deploy, logs, runs, 
 eng ops                      # list the products eng can run ops commands for, and their environments
 eng ops <product>            # list a product's ops commands (a numbered picker in a terminal)
 eng ops <product> <group> <name> [args...] [--env staging|production] [--yes] [--json-output]
+eng ops find <words...>      # search every product's commands
 ```
 
 - Repos live in `~/ideasquared`. `eng setup --dir <folder>` uses another folder and remembers it
@@ -110,10 +116,12 @@ eng ops <product> <group> <name> [args...] [--env staging|production] [--yes] [-
 | `logs ads`                        | `idea logs ads --env <current env>`      |
 | `runs ads`                        | `idea runs ads --failed`                 |
 | `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
+| `find <words...>`                 | `eng ops find <words...>`                |
 | `doctor`, `update`, `theme`       | the eng command of that name             |
 | `ship <...>`, `idea <...>`        | that tool, exactly as typed              |
 | `env`                             | show the session's environment (it cannot be switched) |
 | `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
+| `help <words...>`                 | only the help lines containing every word |
 
 When a deploy, redeploy, rollback or logs line names no environment, the session's is used. If it names a different
 one it is refused with a message, never overridden (`ship ...` and `idea ...` lines too, when they name the other
@@ -132,6 +140,7 @@ eng ops creatrgrid                              # commands, grouped; in a termin
 eng ops creatrgrid accounts list                # a read runs and prints (accounts.list works too)
 eng ops creatrgrid accounts resync acct_1       # a write previews, asks, then runs
 eng ops creatrgrid accounts resync acct_1 --yes --env production --json-output
+eng ops find resync                             # which command does that? searches every product at once
 ```
 
 - It uses your own `gh auth token` (never printed); GitHub decides access, and writes need write access to the
@@ -145,6 +154,26 @@ eng ops creatrgrid accounts resync acct_1 --yes --env production --json-output
   example `ENG_OPS_URL_PAIRFLIX_STAGING=http://localhost:8787/api/ops`. A product with no URL is listed as not
   deployed yet.
 - The Ops item in the eng menu picks a product, then opens the same picker.
+- In the picker, type a number or a command id to choose it, or type words to filter the list. The matches keep their
+  numbers from the whole list, so a number always means the same command; a single match is shown the same way (type
+  its number to pick it). Enter on a filtered list shows the whole list again; enter on the whole list quits.
+
+### Finding a command
+
+`eng ops find <words...>` searches every product that has an ops URL for the current environment (the session's, or
+`--env`; the session lock applies as for any ops command), fetching their catalogs in parallel. A command matches when
+every word (any case) appears in its id, group, name, summary, or a field's name or description. Matches are printed
+grouped by product (then by id) with the exact line to run, positional and required fields shown as `<name>`:
+
+```
+creatrgrid
+  accounts.resync  write  Re-import posts
+    eng ops creatrgrid accounts resync <accountId>
+```
+
+A product that cannot be reached or refuses you prints one muted line and does not stop the others. No match prints one
+line and exits 0. creatrgrid has a `lookup id <id>` command (coming in a separate creatrgrid change) that finds any
+creator, user, social account or content id, returning ids only, so `eng ops find lookup` will show it once it ships.
 
 ## Then
 

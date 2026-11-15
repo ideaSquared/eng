@@ -57,3 +57,23 @@ export const homeMenu = (env: Environment): Menu => ({
 });
 
 export const isMenu = (next: Menu | Action): next is Menu => 'items' in next;
+
+// Every action reachable from a menu, labelled by its path ("Deploy › ads", "Doctor"), in menu order.
+export type SearchEntry = { label: string; action: Action };
+
+export const SEARCH_SEPARATOR = ' › ';
+
+export const searchIndex = (menu: Menu, trail: readonly string[] = []): SearchEntry[] =>
+  menu.items.flatMap((item): SearchEntry[] => {
+    const path = [...trail, item.label];
+    return isMenu(item.next) ? searchIndex(item.next, path) : [{ label: path.join(SEARCH_SEPARATOR), action: item.next }];
+  });
+
+// Every typed word must appear in the label, in any case. No words matches everything. Menu order is kept.
+export const searchMenu = (index: readonly SearchEntry[], text: string): SearchEntry[] => {
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  return index.filter((entry) => words.every((word) => entry.label.toLowerCase().includes(word)));
+};
+
+export const describeAction = (action: Action): string =>
+  action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng';

@@ -28,10 +28,15 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
   eng ops                      list the products whose ops commands eng can run
   eng ops <product> [<group> <name> [args...]] [--env staging|production] [--yes] [--json-output]
-                               browse and run a product's ops commands (writes preview, then confirm)
+                               browse and run a product's ops commands (writes preview, then confirm);
+                               in the picker, type words to filter the list
+  eng ops find <words...>      search every product's commands (every word must match) and print how to run them
 
 eng ops covers products that expose the ops contract (creatrgrid, pairflix). adopt-dont-shop keeps its own
 \`pnpm ops\` and is not part of it. The environment is ENG_ENV (staging unless set); --env overrides it.
+
+In the eng app press / to search every action; in eng shell, find <words...> runs eng ops find and help <words...>
+prints only the help lines matching every word.
 
 The app and the shell start in staging. --production (or --env production) starts in production after a warning and
 you typing production; --env staging is the default spelled out. The environment is fixed for the session.

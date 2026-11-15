@@ -1,13 +1,17 @@
 import type { Fetch } from '../src/vendor/ops/client.ts';
 import { OpsError } from '../src/vendor/ops/contract.ts';
-import type { Catalog } from '../src/vendor/ops/contract.ts';
+import type { Catalog, Command } from '../src/vendor/ops/contract.ts';
 import { describe, expect, it } from 'vitest';
 import {
   confirmationFor,
   defaultEnvironment,
   deployedProducts,
+  commandMatches,
   describeError,
+  filterCommands,
+  findCommands,
   formatCatalog,
+  formatFind,
   formatHeader,
   formatProducts,
   formatResult,
@@ -16,7 +20,9 @@ import {
   plain,
   resolveUrl,
   routeOps,
+  runLine,
   runOps,
+  searchWords,
   type OpsDeps,
 } from '../src/ops.ts';
 
@@ -363,7 +369,7 @@ describe('running ops commands end to end, with the real client', () => {
   it('picks a command interactively, asks each field, then previews and runs', async () => {
     const h = harness(['2', '', 'acct_9', 'y'], { interactive: true });
     expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
-    expect(h.asked[0]).toBe('Pick a command by number or id (enter to quit): ');
+    expect(h.asked[0]).toBe('Pick a command by number or id, or type words to filter (enter to quit): ');
     expect(h.asked[1]).toMatch(/^accountId .*required.*The account: $/);
     expect(runCalls(h)).toEqual(['preview', 'run']);
     expect(h.out.join('\n')).toContain('accountId: acct_9');
@@ -373,5 +379,170 @@ describe('running ops commands end to end, with the real client', () => {
     const h = harness([''], { interactive: true });
     expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
     expect(runCalls(h)).toEqual([]);
+  });
+});
+
+describe('matching commands', () => {
+  const [list, resync, purge] = CATALOG.commands as [Command, Command, Command];
+
+  it('needs every word, in any case', () => {
+    expect(filterCommands(CATALOG.commands, searchWords('RESYNC'))).toEqual([resync]);
+    expect(filterCommands(CATALOG.commands, searchWords('accounts list'))).toEqual([list]);
+    expect(filterCommands(CATALOG.commands, searchWords('accounts purge'))).toEqual([]);
+    expect(filterCommands(CATALOG.commands, [])).toEqual(CATALOG.commands);
+  });
+
+  it('matches id, group, name, summary, field names and field descriptions', () => {
+    expect(commandMatches(purge, ['cache'])).toBe(true);
+    expect(commandMatches(purge, ['cache the'])).toBe(false);
+    expect(commandMatches(resync, ['re-import'])).toBe(true);
+    expect(commandMatches(resync, ['accountid'])).toBe(true);
+    expect(commandMatches(resync, ['the', 'account'])).toBe(true);
+    expect(commandMatches(list, ['accountid'])).toBe(false);
+  });
+
+  it('keeps catalog order when filtering', () => {
+    expect(filterCommands(CATALOG.commands, ['a']).map((c) => c.id)).toEqual(['accounts.list', 'accounts.resync', 'cache.purge']);
+  });
+});
+
+describe('the run line', () => {
+  const field = (name: string, extra: Partial<Command['fields'][number]> = {}) => ({ name, type: 'string' as const, required: false, description: '', ...extra });
+  const command = (fields: Command['fields']): Command => ({ id: 'creator.lookup', group: 'creator', name: 'lookup', summary: '', kind: 'read', dryRun: false, fields });
+
+  it('shows positional fields as <name> and nothing else when there are none', () => {
+    expect(runLine('creatrgrid', command([field('q', { positional: true, required: true })]))).toBe('eng ops creatrgrid creator lookup <q>');
+    expect(runLine('creatrgrid', command([]))).toBe('eng ops creatrgrid creator lookup');
+  });
+
+  it('shows optional positionals as [name], required options as --name=<name>, and omits optional options', () => {
+    const fields = [field('limit', { type: 'number' }), field('kind', { required: true, type: 'enum', values: ['a'] }), field('page', { positional: true })];
+    expect(runLine('creatrgrid', command(fields))).toBe('eng ops creatrgrid creator lookup [page] --kind=<kind>');
+  });
+});
+
+describe('finding commands across products', () => {
+  const cmd = (id: string, summary: string): Command => {
+    const [group = '', name = ''] = id.split('.');
+    return { id, group, name, summary, kind: 'read', dryRun: false, fields: [] };
+  };
+
+  it('orders by product, then command id, and drops products with no match', () => {
+    const found = findCommands(
+      [
+        { product: 'pairflix', commands: [cmd('sync.run', 'Sync now'), cmd('app.sync', 'Sync app')] },
+        { product: 'creatrgrid', commands: [cmd('z.sync', 'Sync z'), cmd('a.sync', 'Sync a')] },
+        { product: 'other', commands: [cmd('x.y', 'nothing')] },
+      ],
+      ['sync'],
+    );
+    expect(found.map((m) => [m.product, m.commands.map((c) => c.id)])).toEqual([
+      ['creatrgrid', ['a.sync', 'z.sync']],
+      ['pairflix', ['app.sync', 'sync.run']],
+    ]);
+  });
+
+  it('prints id, read or write, summary and the line to run', () => {
+    const text = formatFind(findCommands([{ product: 'creatrgrid', commands: CATALOG.commands }], ['resync'])).join('\n');
+    expect(text).toContain('creatrgrid');
+    expect(text).toContain('accounts.resync  write  Re-import posts');
+    expect(text).toContain('eng ops creatrgrid accounts resync <accountId>');
+  });
+});
+
+describe('eng ops find', () => {
+  const PAIRFLIX: Catalog = {
+    version: 1,
+    product: 'pairflix',
+    environment: 'staging',
+    commands: [{ id: 'households.resync', group: 'households', name: 'resync', summary: 'Resync a household', kind: 'write', dryRun: false, fields: [] }],
+  };
+  const env = {
+    ENG_OPS_URL_CREATRGRID_STAGING: 'http://ops.test/creatrgrid',
+    ENG_OPS_URL_PAIRFLIX_STAGING: 'http://ops.test/pairflix',
+    ENG_OPS_URL_CREATRGRID_PRODUCTION: 'http://ops.test/prod',
+  };
+
+  it('routes find with words, and refuses it with none', () => {
+    expect(routeOps(['find', 'sync', 'x'])).toEqual({ kind: 'find', environment: 'staging', words: ['sync', 'x'] });
+    expect(routeOps(['find']).kind).toBe('error');
+  });
+
+  it('keeps the session lock for find', () => {
+    expect(routeOps(['find', 'sync', '--env', 'production'], 'staging', 'staging').kind).toBe('error');
+    expect(routeOps(['find', 'sync', '--env', 'staging'], 'staging', 'staging').kind).toBe('find');
+  });
+
+  it('searches every product with a URL in the session environment and prints matches by product', async () => {
+    const h = harness([], { env });
+    const base = h.deps.fetch;
+    const urls: string[] = [];
+    h.deps.fetch = async (input, init) => {
+      urls.push(String(input));
+      return String(input).includes('/pairflix/') ? Response.json(PAIRFLIX) : base!(input, init);
+    };
+    expect(await runOps(['find', 'RESYNC'], h.deps)).toBe(0);
+    expect(urls.sort()).toEqual(['http://ops.test/creatrgrid/catalog', 'http://ops.test/pairflix/catalog']);
+    const text = h.out.join('\n');
+    expect(text.indexOf('creatrgrid')).toBeLessThan(text.indexOf('pairflix'));
+    expect(text).toContain('eng ops creatrgrid accounts resync <accountId>');
+    expect(text).toContain('eng ops pairflix households resync');
+    expect(text).not.toContain('cache.purge');
+    expect(JSON.stringify([h.out, h.err])).not.toContain('secret-token');
+  });
+
+  it('prints one muted line for a product that fails and still lists the others', async () => {
+    const h = harness([], { env });
+    const base = h.deps.fetch;
+    h.deps.fetch = async (input, init) =>
+      String(input).includes('/pairflix/') ? Response.json({ error: { code: 'forbidden', message: 'no' } }, { status: 403 }) : base!(input, init);
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.err).toHaveLength(1);
+    expect(h.err[0]).toContain('pairflix');
+    expect(h.out.join('\n')).toContain('accounts.resync');
+  });
+
+  it('says so and exits 0 when nothing matches', async () => {
+    const h = harness([], { env });
+    expect(await runOps(['find', 'nonexistent'], h.deps)).toBe(0);
+    expect(h.out.join('\n')).toContain("No commands match 'nonexistent'");
+  });
+
+  it('exits 1 when no product could be searched', async () => {
+    const h = harness([], { env, failWith: Response.json({ error: { code: 'unauthenticated', message: 'x' } }, { status: 401 }) });
+    expect(await runOps(['find', 'x'], h.deps)).toBe(1);
+  });
+
+  it('exits 1 when gh is not signed in, without fetching', async () => {
+    const h = harness([], { env, token: undefined });
+    expect(await runOps(['find', 'x'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+  });
+});
+
+describe('the picker filter', () => {
+  it('filters by text, keeps whole-list numbers, and picks by number', async () => {
+    const h = harness(['resync', '2', 'acct_9', 'y'], { interactive: true });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
+    const frames = h.out.join('\n');
+    expect(frames.match(/accounts\.list/g)).toHaveLength(1);
+    expect(frames).toContain('2. accounts.resync');
+    expect(h.asked[1]).toContain('enter to show all');
+    expect(runCalls(h)).toEqual(['preview', 'run']);
+  });
+
+  it('re-prompts on no match, and shows the whole list again on empty input after a filter', async () => {
+    const h = harness(['zzz', 'cache', '', undefined], { interactive: true });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
+    const text = h.out.join('\n');
+    expect(text).toContain("No command matches 'zzz'.");
+    expect(h.asked).toHaveLength(4);
+    expect(text.match(/accounts\.list/g)).toHaveLength(2);
+  });
+
+  it('still quits on empty input when the whole list is showing', async () => {
+    const h = harness([''], { interactive: true });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
+    expect(h.asked).toHaveLength(1);
   });
 });

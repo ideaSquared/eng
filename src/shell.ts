@@ -22,14 +22,22 @@ export const HELP_TEXT = `  deploy <product> [env]      ship deploy <product> <e
   logs <project> [env]        idea logs <project> --env <env>
   runs <project>              idea runs <project> --failed
   ops <...>                   eng ops <...>
+  find <words...>             eng ops find <words...>: search every product's ops commands
   doctor | update | theme     eng's own commands
   ship <...> | idea <...>     run that tool as typed
   env                         show the session's environment (fixed at startup)
-  help                        this list
+  help [words...]             this list, or only the lines matching every word
   exit | quit | Ctrl-D        leave the shell
 
 The environment is fixed for the session: eng starts in staging, eng --production starts in production.
 When a command names no env, the session's is used; naming a different one is refused. Production deploys still ask you to type the product name.`;
+
+// help <words>: only the lines that contain every word, in any case.
+const helpLines = (words: string[]): Outcome => {
+  if (words.length === 0) return message(HELP_TEXT);
+  const lines = HELP_TEXT.split('\n').filter((line) => words.every((word) => line.toLowerCase().includes(word.toLowerCase())));
+  return message(lines.length > 0 ? lines.join('\n') : `No help lines match '${words.join(' ')}'. Try help.`);
+};
 
 const usage = (text: string): Outcome => message(`usage: ${text}`);
 
@@ -101,6 +109,8 @@ export const route = (line: string, state: ShellState): Outcome => {
       return runs(rest);
     case 'ops':
       return run('eng', ['ops', ...rest]);
+    case 'find':
+      return rest.length === 0 ? usage('find <words...>') : run('eng', ['ops', 'find', ...rest]);
     case 'doctor':
     case 'update':
     case 'theme':
@@ -112,7 +122,7 @@ export const route = (line: string, state: ShellState): Outcome => {
       return showEnv(rest, state);
     case 'help':
     case '?':
-      return message(HELP_TEXT);
+      return helpLines(rest);
     case 'exit':
     case 'quit':
       return { kind: 'exit' };
@@ -122,12 +132,12 @@ export const route = (line: string, state: ShellState): Outcome => {
 };
 
 export const COMMAND_WORDS: readonly string[] = [
-  'deploy', 'redeploy', 'rollback', 'status', 'logs', 'runs', 'ops', 'doctor', 'update', 'theme',
+  'deploy', 'redeploy', 'rollback', 'status', 'logs', 'runs', 'ops', 'find', 'doctor', 'update', 'theme',
   'ship', 'idea', 'env', 'help', 'exit', 'quit',
 ];
 
 // A completed word that is followed by an argument gets a trailing space, so the next word can be typed straight away.
-const TAKES_ARGUMENT: readonly string[] = [...SHIP_PRODUCTS, ...IDEA_PROJECTS, 'deploy', 'redeploy', 'rollback', 'logs', 'runs', 'ops', 'ship', 'idea'];
+const TAKES_ARGUMENT: readonly string[] = [...SHIP_PRODUCTS, ...IDEA_PROJECTS, 'deploy', 'redeploy', 'rollback', 'logs', 'runs', 'ops', 'find', 'ship', 'idea'];
 
 const completeFrom = (candidates: readonly string[], partial: string): [string[], string] => [
   candidates.filter((c) => c.startsWith(partial)).map((c) => (TAKES_ARGUMENT.includes(c) ? `${c} ` : c)),
