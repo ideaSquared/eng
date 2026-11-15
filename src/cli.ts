@@ -358,14 +358,15 @@ const main = async (): Promise<number> => {
     return 1;
   }
   const { env } = startup;
-  // The warning comes before anything else, the update check included. Anything but production exits quietly.
-  if (!values.help && env === 'production' && !(await confirmProduction())) return 0;
-  process.env.ENG_ENV = env;
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  // When eng itself updated, run the new version for what was asked, without checking again.
+  // Update first: updating eng touches no product. When eng itself updated, the new version runs what was asked
+  // (flags included) without checking again, so the production warning below is shown once, by that version.
   if (!values.help && shouldCheck(command, process.env, interactive) && (await selfUpdate())) {
     return spawn('eng', process.argv.slice(2), { stdio: 'inherit', env: { ...process.env, ENG_NO_UPDATE: '1' } }).status ?? 1;
   }
+  // The warning comes before anything that can reach a product. Anything but production exits quietly.
+  if (!values.help && env === 'production' && !(await confirmProduction())) return 0;
+  process.env.ENG_ENV = env;
   if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch(env);
   if (values.help || !command) {
     console.log(HELP);

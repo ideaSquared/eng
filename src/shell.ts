@@ -73,11 +73,20 @@ const passthrough = (command: 'ship' | 'idea', rest: string[], state: ShellState
 const noArgs = (word: string, rest: string[], outcome: Outcome): Outcome =>
   rest.length > 0 ? usage(word) : outcome;
 
+// On Windows every command starts through cmd.exe, which rewrites ^, %VAR%, quotes and !, and treats & | < > ( ) as
+// operators. A word with any of those could reach the tool as something other than what the environment check saw
+// (`produc^tion` becomes `production`), or start a second command. So a line may only hold plain words.
+const PLAIN_WORD = /^[A-Za-z0-9._:/=@+,-]+$/;
+
 // One typed line plus the current state becomes one outcome. Words are split on whitespace and passed to the tool
-// as separate arguments (never through a shell), so a line cannot run anything its first word did not route to.
+// as separate arguments, so a line cannot run anything its first word did not route to.
 export const route = (line: string, state: ShellState): Outcome => {
-  const [word, ...rest] = line.trim().split(/\s+/).filter(Boolean);
+  const words = line.trim().split(/\s+/).filter(Boolean);
+  const [word, ...rest] = words;
   if (word === undefined) return { kind: 'empty' };
+  if (!words.every((w) => PLAIN_WORD.test(w))) {
+    return message('Refused: use only letters, digits and . _ : / = @ + , - in a line (no quotes, ^, %, !, &, |, <, >, brackets).');
+  }
   const command = word.toLowerCase();
   switch (command) {
     case 'deploy':

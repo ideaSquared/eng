@@ -96,6 +96,28 @@ describe('incomplete or odd lines run nothing', () => {
   it('treats shell metacharacters as plain words, so a chained command is refused', () => {
     expect(route('deploy ads; rm -rf /', staging).kind).toBe('message');
   });
+
+  // cmd.exe on Windows rewrites these before the tool sees them, so the environment check would see other words.
+  it.each([
+    'ship deploy ads produc^tion',
+    'ship deploy ads %ENV%',
+    'idea logs ads --env "production"',
+    'deploy ads !x!',
+    'status & ship deploy ads production',
+    'ship status | more',
+    'logs ads > out.txt',
+    'ops creatrgrid sync resync (x)',
+  ])('refuses %s before running anything', (line) => {
+    const outcome = route(line, staging);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toMatch(/^Refused: use only/);
+  });
+
+  it('still runs lines made of plain words, ids and --flag=value', () => {
+    expect(route('ops creatrgrid sync.resync acct_1-2 --env=staging', staging)).toEqual(
+      run('eng', 'ops', 'creatrgrid', 'sync.resync', 'acct_1-2', '--env=staging'),
+    );
+  });
 });
 
 describe('unknown words', () => {
