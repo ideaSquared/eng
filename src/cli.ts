@@ -10,7 +10,7 @@ import { BASE_TOOLS, checkGitHubLogin, checkTool, formatResults, TOOLS, type Res
 import type { Action } from './menu.ts';
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
-import { spawn } from './exec.ts';
+import { releaseTerminal, spawn } from './exec.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
 
@@ -229,8 +229,7 @@ const runAction = async (action: Extract<Action, { kind: 'run' }>): Promise<void
   }
   // ship and idea read the same terminal. Hand it over cooked (echo on) and with no read pending in this
   // process: on Windows a pending console read here swallows the keys typed at their prompts.
-  if (process.stdin.isTTY) process.stdin.setRawMode(false);
-  process.stdin.pause();
+  releaseTerminal(process.stdin);
   if (!live(action.command, action.args)) console.log(`\n! ${action.command} did not finish cleanly. Run eng doctor if it is missing.`);
 };
 
