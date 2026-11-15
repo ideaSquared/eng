@@ -46,9 +46,19 @@ describe('the eng app', () => {
     expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'creatrgrid', 'production'] }]);
   });
 
+  it('walks to a redeploy, which deploys the live commit again', async () => {
+    const { stdin, chosen, lastFrame } = open();
+    await press(stdin, '3');
+    expect(lastFrame()).toContain('Redeploy which product?');
+    await press(stdin, '1');
+    expect(lastFrame()).toContain('Redeploy ads to');
+    await press(stdin, ENTER);
+    expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'ads', 'staging', '--redeploy'] }]);
+  });
+
   it('goes back with esc', async () => {
     const { stdin, lastFrame } = open();
-    await press(stdin, '3');
+    await press(stdin, '4');
     expect(lastFrame()).toContain('Logs for');
     await press(stdin, ESC);
     expect(lastFrame()).toContain('What do you want to do?');
