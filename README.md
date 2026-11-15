@@ -24,6 +24,10 @@ The installer:
 3. runs `eng setup`, which:
    - signs you in to GitHub in your browser (`gh auth login`) and lets git use that sign-in;
    - installs the `ship` (deploys) and `idea` (sanitised logs) CLIs;
+   - creates your SSH key at `~/.ssh/id_ed25519` if you have none (it never replaces an existing one) and adds its
+     public half to your GitHub account, asking gh once for the `admin:public_key` permission. The private key
+     never leaves your machine. An admin grants server access (such as ADS ops) from
+     `https://github.com/<your login>.keys`, so there is no key to copy and paste;
    - clones every ideaSquared repo you have access to into `~/ideasquared` and runs `pnpm install` in each;
    - finishes with `eng doctor`.
 
@@ -82,7 +86,7 @@ The palette lives in `src/theme.ts`.
 
 ```bash
 eng [--production]           # open the eng app (staging unless --production; fixed for the session)
-eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
+eng setup [--dir <folder>]   # sign in, install ship and idea, SSH key on GitHub, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
 eng theme                    # install the ideaSquared terminal skin and prompt
