@@ -9,7 +9,12 @@ export const spawn = (command, args, options) => {
     const [file, argv] = process.platform === 'win32' ? windowsCommand(command, args) : [command, [...args]];
     return spawnSync(file, argv, options);
 };
-const isReadHandle = (value) => typeof value === 'object' && value !== null && 'readStop' in value && typeof value.readStop === 'function';
+const isReadHandle = (value) => typeof value === 'object' &&
+    value !== null &&
+    'readStop' in value &&
+    typeof value.readStop === 'function' &&
+    'readStart' in value &&
+    typeof value.readStart === 'function';
 // Hands the terminal to a child command. pause() alone leaves a TTY's read running (Node only stops it once its
 // buffer is full), and on Windows switching a reading console to cooked mode queues a line read that takes the
 // keys typed at the child's prompt. So stop the read first, through the handle Node uses for this itself, then
@@ -23,4 +28,14 @@ export const releaseTerminal = (stdin) => {
     stdin.pause();
     if (stdin.isTTY)
         stdin.setRawMode?.(false);
+};
+// Takes the terminal back once the child has finished. The stream still thinks the read releaseTerminal stopped is
+// pending, so resume() alone never starts another and Node exits with nothing left to wait for. Restart it the way
+// Node does (reading = true, then readStart).
+export const reclaimTerminal = (stdin) => {
+    const handle = Reflect.get(stdin, '_handle');
+    if (!isReadHandle(handle) || handle.reading)
+        return;
+    handle.reading = true;
+    handle.readStart();
 };
