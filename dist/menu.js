@@ -6,18 +6,27 @@ const pick = (title, names, next) => ({
     title,
     items: names.map((name) => ({ label: name, next: next(name) })),
 });
-const environments = (product) => ({
-    title: `Deploy ${product} to`,
-    items: [
-        { label: 'staging', next: run('ship', ['deploy', product, 'staging']) },
-        { label: 'production', hint: 'asks you to type the product name', next: run('ship', ['deploy', product, 'production']) },
-    ],
-});
+// A redeploy ships the same commit again even when it is already live (ship deploy --redeploy).
+const environments = (verb) => (product) => {
+    const extra = verb === 'Redeploy' ? ['--redeploy'] : [];
+    return {
+        title: `${verb} ${product} to`,
+        items: [
+            { label: 'staging', next: run('ship', ['deploy', product, 'staging', ...extra]) },
+            { label: 'production', hint: 'asks you to type the product name', next: run('ship', ['deploy', product, 'production', ...extra]) },
+        ],
+    };
+};
 export const HOME = {
     title: 'What do you want to do?',
     items: [
         { label: 'Status', hint: 'what is live in every product', next: run('ship', ['status']) },
-        { label: 'Deploy', hint: 'ship a product to staging or production', next: pick('Deploy which product?', SHIP_PRODUCTS, environments) },
+        { label: 'Deploy', hint: 'ship a product to staging or production', next: pick('Deploy which product?', SHIP_PRODUCTS, environments('Deploy')) },
+        {
+            label: 'Redeploy',
+            hint: 'deploy again, even if that commit is already live',
+            next: pick('Redeploy which product?', SHIP_PRODUCTS, environments('Redeploy')),
+        },
         { label: 'Logs', hint: 'sanitised logs from the last hour', next: pick('Logs for', IDEA_PROJECTS, (p) => run('idea', ['logs', p])) },
         {
             label: 'Failed runs',
