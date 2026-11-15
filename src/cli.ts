@@ -227,6 +227,10 @@ const runAction = async (action: Extract<Action, { kind: 'run' }>): Promise<void
     await runCommand(action.args[0] ?? '', reposDir());
     return;
   }
+  // ship and idea read the same terminal. Hand it over cooked (echo on) and with no read pending in this
+  // process: on Windows a pending console read here swallows the keys typed at their prompts.
+  if (process.stdin.isTTY) process.stdin.setRawMode(false);
+  process.stdin.pause();
   if (!live(action.command, action.args)) console.log(`\n! ${action.command} did not finish cleanly. Run eng doctor if it is missing.`);
 };
 
