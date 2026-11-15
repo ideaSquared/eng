@@ -297,6 +297,8 @@ const ops = async (argv) => {
     process.on('exit', killLiveTunnels);
     process.on('SIGINT', interrupted);
     process.on('SIGTERM', interrupted);
+    // In a terminal readline takes Ctrl-C itself, so the process handler above never sees it.
+    rl.on('SIGINT', interrupted);
     try {
         return await runOps(argv, {
             env: process.env,
