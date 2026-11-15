@@ -6,14 +6,25 @@ import type { Fetch } from './vendor/ops/client.ts';
 import { OpsError } from './vendor/ops/contract.ts';
 import type { Catalog, Command, Field, InvokeResponse } from './vendor/ops/contract.ts';
 import { paint, PALETTE } from './theme.ts';
+import { TunnelError } from './tunnel.ts';
+import type { Tunnel, TunnelTarget } from './tunnel.ts';
 
 export const OPS_ENVIRONMENTS = ['staging', 'production'] as const;
 export type OpsEnvironment = (typeof OPS_ENVIRONMENTS)[number];
 
-export type OpsProduct = { name: string; repo: string; urls: Partial<Record<OpsEnvironment, string>> };
+// A product is reached at a fixed URL, or (tunnel) through an SSH tunnel eng opens itself. `access` says what GitHub
+// access the server wants, for the forbidden message (default: write access to the product's repo).
+export type OpsProduct = {
+  name: string;
+  repo: string;
+  urls: Partial<Record<OpsEnvironment, string>>;
+  tunnel?: Partial<Record<OpsEnvironment, TunnelTarget>>;
+  access?: string;
+};
 
-// adopt-dont-shop is not here: it keeps its own `pnpm ops` for now. pairflix has no deployed URL yet; point it
-// anywhere with ENG_OPS_URL_PAIRFLIX_STAGING (or _PRODUCTION) until it has one.
+// ads is reached through an SSH tunnel to service-ops (settings from adopt-dont-shop's `pnpm ops setup`; its
+// environments are staging and prod). pairflix has no deployed URL yet; point it anywhere with
+// ENG_OPS_URL_PAIRFLIX_STAGING (or _PRODUCTION) until it has one.
 export const OPS_PRODUCTS: readonly OpsProduct[] = [
   {
     name: 'creatrgrid',
@@ -24,6 +35,16 @@ export const OPS_PRODUCTS: readonly OpsProduct[] = [
     },
   },
   { name: 'pairflix', repo: 'ideaSquared/pairflix', urls: {} },
+  {
+    name: 'ads',
+    repo: 'ideaSquared/adopt-dont-shop',
+    urls: {},
+    access: 'to be in the ADS ops GitHub team for this environment',
+    tunnel: {
+      staging: { label: 'ADS staging', settingsKey: 'staging', remotePort: 4101, path: '/ops/v1' },
+      production: { label: 'ADS production', settingsKey: 'prod', remotePort: 4102, path: '/ops/v1' },
+    },
+  },
 ];
 
 export type Env = Readonly<Record<string, string | undefined>>;
@@ -34,8 +55,18 @@ export const overrideVar = (product: string, environment: OpsEnvironment): strin
 export const resolveUrl = (product: OpsProduct, environment: OpsEnvironment, env: Env): string | undefined =>
   env[overrideVar(product.name, environment)]?.trim() || product.urls[environment];
 
+export type Endpoint = { kind: 'url'; url: string } | { kind: 'tunnel'; target: TunnelTarget };
+
+// ENG_OPS_URL_<PRODUCT>_<ENV> wins and skips any tunnel; then the registered URL; then the product's tunnel.
+export const resolveEndpoint = (product: OpsProduct, environment: OpsEnvironment, env: Env): Endpoint | undefined => {
+  const url = resolveUrl(product, environment, env);
+  if (url !== undefined) return { kind: 'url', url };
+  const target = product.tunnel?.[environment];
+  return target === undefined ? undefined : { kind: 'tunnel', target };
+};
+
 export const configuredEnvironments = (product: OpsProduct, env: Env): OpsEnvironment[] =>
-  OPS_ENVIRONMENTS.filter((environment) => resolveUrl(product, environment, env) !== undefined);
+  OPS_ENVIRONMENTS.filter((environment) => resolveEndpoint(product, environment, env) !== undefined);
 
 export const deployedProducts = (env: Env): OpsProduct[] =>
   OPS_PRODUCTS.filter((product) => configuredEnvironments(product, env).length > 0);
@@ -286,14 +317,15 @@ export const formatProducts = (env: Env, p: Painter = plain): string[] => {
   return [
     ...OPS_PRODUCTS.map((product) => {
       const environments = configuredEnvironments(product, env);
-      const detail = environments.length > 0 ? environments.join(', ') : p('muted', 'not deployed yet');
+      const via = product.tunnel === undefined ? '' : p('muted', ' (SSH tunnel)');
+      const detail = environments.length > 0 ? `${environments.join(', ')}${via}` : p('muted', 'not deployed yet');
       return `${p('primary', product.name.padEnd(nameWidth))}  ${detail}`;
     }),
     '',
     p('muted', 'Usage: eng ops <product> [--env staging|production]'),
     p('muted', '       eng ops <product> <group> <name> [args...] [--yes] [--json-output]'),
     p('muted', '       eng ops find <words...>   search every product\'s commands'),
-    p('muted', 'adopt-dont-shop keeps its own `pnpm ops` and is not listed here.'),
+    p('muted', 'ads opens an SSH tunnel itself: run `pnpm ops setup` in adopt-dont-shop once. Unlocks and history stay in `pnpm ops`.'),
     p('muted', 'The environment is ENG_ENV (staging unless eng --production); --env overrides it.'),
     p('muted', 'Point a product anywhere with ENG_OPS_URL_<PRODUCT>_<STAGING|PRODUCTION>.'),
   ];
@@ -309,7 +341,7 @@ export const describeError = (error: unknown, product: OpsProduct | undefined, u
     case 'unauthenticated':
       return 'GitHub did not accept your sign-in. Run: gh auth login (or eng setup)';
     case 'forbidden':
-      return `You need write access to ${product?.repo ?? 'the product repo'} on GitHub`;
+      return product?.access === undefined ? `You need write access to ${product?.repo ?? 'the product repo'} on GitHub` : `You need ${product.access}`;
     case 'not_found':
       return `The product does not know that command. Run: eng ops ${product?.name ?? '<product>'} to list its commands`;
     case 'invalid_argument':
@@ -328,6 +360,8 @@ export type OpsDeps = {
   fetch?: Fetch;
   // The GitHub token (`gh auth token`), or undefined when gh is not signed in. Never printed.
   getToken: () => string | undefined;
+  // Opens the SSH tunnel for a tunnel product. close() must end it; eng calls it when the work is done or failed.
+  openTunnel?: (target: TunnelTarget) => Promise<Tunnel>;
   // Asks one question. undefined means the input is closed.
   ask: (prompt: string) => Promise<string | undefined>;
   out: (line: string) => void;
@@ -408,6 +442,17 @@ export const pickCommand = async (catalog: Catalog, deps: OpsDeps): Promise<{ co
 
 type Target = { product: OpsProduct; environment: OpsEnvironment; url: string; token: string; yes: boolean; jsonOutput: boolean };
 
+// The base URL for an endpoint: as given, or through a tunnel that is open until close().
+const openEndpoint = async (endpoint: Endpoint, deps: OpsDeps): Promise<Tunnel> => {
+  if (endpoint.kind === 'url') return { url: endpoint.url, close: () => undefined };
+  if (deps.openTunnel === undefined) throw new TunnelError('SSH tunnels are not available here.');
+  try {
+    return await deps.openTunnel(endpoint.target);
+  } catch (error) {
+    throw error instanceof TunnelError ? error : new TunnelError(`Could not open the SSH tunnel: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+};
+
 const executeCommand = async (target: Target, command: Command, words: readonly string[], deps: OpsDeps): Promise<number> => {
   const { product, environment, url, token, yes, jsonOutput } = target;
   const p = deps.paint;
@@ -446,8 +491,8 @@ const executeCommand = async (target: Target, command: Command, words: readonly 
 const findAcross = async (environment: OpsEnvironment, words: readonly string[], deps: OpsDeps): Promise<number> => {
   const p = deps.paint;
   const targets = OPS_PRODUCTS.flatMap((product) => {
-    const url = resolveUrl(product, environment, deps.env);
-    return url === undefined ? [] : [{ product, url }];
+    const endpoint = resolveEndpoint(product, environment, deps.env);
+    return endpoint === undefined ? [] : [{ product, endpoint }];
   });
   if (targets.length === 0) {
     deps.err(`No product has an ops URL for ${environment} yet.`);
@@ -459,11 +504,15 @@ const findAcross = async (environment: OpsEnvironment, words: readonly string[],
     return 1;
   }
   const loaded = await Promise.all(
-    targets.map(async ({ product, url }) => {
+    targets.map(async ({ product, endpoint }) => {
+      let tunnel: Tunnel | undefined;
       try {
-        return { entry: { product: product.name, commands: (await fetchCatalog(url, token, deps.fetch)).commands } };
+        tunnel = await openEndpoint(endpoint, deps);
+        return { entry: { product: product.name, commands: (await fetchCatalog(tunnel.url, token, deps.fetch)).commands } };
       } catch (error) {
-        return { failure: `${product.name}: ${describeError(error, product, url)}` };
+        return { failure: `${product.name}: ${error instanceof TunnelError ? error.message : describeError(error, product, tunnel?.url ?? '')}` };
+      } finally {
+        tunnel?.close();
       }
     }),
   );
@@ -501,8 +550,8 @@ export const runOps = async (argv: readonly string[], deps: OpsDeps): Promise<nu
     deps.err(`Unknown product '${route.product}'. Products: ${OPS_PRODUCTS.map((candidate) => candidate.name).join(', ')}`);
     return 1;
   }
-  const url = resolveUrl(product, route.environment, deps.env);
-  if (url === undefined) {
+  const endpoint = resolveEndpoint(product, route.environment, deps.env);
+  if (endpoint === undefined) {
     const hint = `set ${overrideVar(product.name, route.environment)} to point it somewhere`;
     deps.err(`${product.name} is not deployed to ${route.environment} yet: ${hint}`);
     return 1;
@@ -513,6 +562,14 @@ export const runOps = async (argv: readonly string[], deps: OpsDeps): Promise<nu
     return 1;
   }
   const yes = route.kind === 'command' && route.yes;
+  let tunnel: Tunnel;
+  try {
+    tunnel = await openEndpoint(endpoint, deps);
+  } catch (error) {
+    deps.err(error instanceof Error ? error.message : 'Could not open the SSH tunnel.');
+    return 1;
+  }
+  const url = tunnel.url;
   const target: Target = { product, environment: route.environment, url, token, yes, jsonOutput: route.jsonOutput };
 
   try {
@@ -539,5 +596,7 @@ export const runOps = async (argv: readonly string[], deps: OpsDeps): Promise<nu
   } catch (error) {
     deps.err(describeError(error, product, url));
     return 1;
+  } finally {
+    tunnel.close();
   }
 };
