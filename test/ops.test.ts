@@ -411,13 +411,13 @@ describe('the run line', () => {
   const command = (fields: Command['fields']): Command => ({ id: 'creator.lookup', group: 'creator', name: 'lookup', summary: '', kind: 'read', dryRun: false, fields });
 
   it('shows positional fields as <name> and nothing else when there are none', () => {
-    expect(runLine('creatrgrid', command([field('q', { positional: true, required: true })]))).toBe('eng ops creatrgrid creator lookup <q>');
-    expect(runLine('creatrgrid', command([]))).toBe('eng ops creatrgrid creator lookup');
+    expect(runLine('creatrgrid', command([field('q', { positional: true, required: true })]), 'staging')).toBe('eng ops creatrgrid creator lookup <q> --env staging');
+    expect(runLine('creatrgrid', command([]), 'production')).toBe('eng ops creatrgrid creator lookup --env production');
   });
 
   it('shows optional positionals as [name], required options as --name=<name>, and omits optional options', () => {
     const fields = [field('limit', { type: 'number' }), field('kind', { required: true, type: 'enum', values: ['a'] }), field('page', { positional: true })];
-    expect(runLine('creatrgrid', command(fields))).toBe('eng ops creatrgrid creator lookup [page] --kind=<kind>');
+    expect(runLine('creatrgrid', command(fields), 'staging')).toBe('eng ops creatrgrid creator lookup [page] --kind=<kind> --env staging');
   });
 });
 
@@ -443,10 +443,16 @@ describe('finding commands across products', () => {
   });
 
   it('prints id, read or write, summary and the line to run', () => {
-    const text = formatFind(findCommands([{ product: 'creatrgrid', commands: CATALOG.commands }], ['resync'])).join('\n');
+    const text = formatFind(findCommands([{ product: 'creatrgrid', commands: CATALOG.commands }], ['resync']), 'staging').join('\n');
     expect(text).toContain('creatrgrid');
     expect(text).toContain('accounts.resync  write  Re-import posts');
-    expect(text).toContain('eng ops creatrgrid accounts resync <accountId>');
+    expect(text).toContain('eng ops creatrgrid accounts resync <accountId> --env staging');
+  });
+
+  it('puts the searched environment on every run line, so a production result runs in production', () => {
+    const text = formatFind(findCommands([{ product: 'creatrgrid', commands: CATALOG.commands }], ['resync']), 'production').join('\n');
+    expect(text).toContain('eng ops creatrgrid accounts resync <accountId> --env production');
+    expect(text).not.toContain('--env staging');
   });
 });
 

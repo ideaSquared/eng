@@ -140,19 +140,20 @@ const fieldWord = (field) => {
         return field.required ? `<${field.name}>` : `[${field.name}]`;
     return field.required ? `--${field.name}=<${field.name}>` : undefined;
 };
-// The line that runs a command: positional fields as <name> ([name] when optional), required options as --name=<name>.
-export const runLine = (product, command) => {
+// The line that runs a command: positional fields as <name> ([name] when optional), required options as --name=<name>,
+// then the environment that was searched, so copying the line never lands somewhere else (staging by default).
+export const runLine = (product, command, environment) => {
     const words = [...command.fields.filter((f) => f.positional), ...command.fields.filter((f) => !f.positional)].flatMap((f) => fieldWord(f) ?? []);
-    return ['eng', 'ops', product, command.group, command.name, ...words].join(' ');
+    return ['eng', 'ops', product, command.group, command.name, ...words, '--env', environment].join(' ');
 };
-export const formatFind = (matches, p = plain) => matches.flatMap(({ product, commands }) => {
+export const formatFind = (matches, environment, p = plain) => matches.flatMap(({ product, commands }) => {
     const idWidth = Math.max(...commands.map((command) => command.id.length));
     return [
         '',
         p('accent', product),
         ...commands.flatMap((command) => [
             `  ${command.id.padEnd(idWidth)}  ${p(command.kind === 'write' ? 'warning' : 'muted', command.kind.padEnd(5))}  ${command.summary}`,
-            `    ${runLine(product, command)}`,
+            `    ${runLine(product, command, environment)}`,
         ]),
     ];
 });
@@ -394,7 +395,7 @@ const findAcross = async (environment, words, deps) => {
         deps.out(`No commands match '${words.join(' ')}' in ${entries.map((entry) => entry.product).join(', ')}.`);
         return 0;
     }
-    deps.out(formatFind(matches, p).join('\n'));
+    deps.out(formatFind(matches, environment, p).join('\n'));
     return 0;
 };
 export const runOps = async (argv, deps) => {

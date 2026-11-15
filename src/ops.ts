@@ -185,13 +185,14 @@ const fieldWord = (field: Field): string | undefined => {
   return field.required ? `--${field.name}=<${field.name}>` : undefined;
 };
 
-// The line that runs a command: positional fields as <name> ([name] when optional), required options as --name=<name>.
-export const runLine = (product: string, command: Command): string => {
+// The line that runs a command: positional fields as <name> ([name] when optional), required options as --name=<name>,
+// then the environment that was searched, so copying the line never lands somewhere else (staging by default).
+export const runLine = (product: string, command: Command, environment: OpsEnvironment): string => {
   const words = [...command.fields.filter((f) => f.positional), ...command.fields.filter((f) => !f.positional)].flatMap((f) => fieldWord(f) ?? []);
-  return ['eng', 'ops', product, command.group, command.name, ...words].join(' ');
+  return ['eng', 'ops', product, command.group, command.name, ...words, '--env', environment].join(' ');
 };
 
-export const formatFind = (matches: readonly ProductCommands[], p: Painter = plain): string[] =>
+export const formatFind = (matches: readonly ProductCommands[], environment: OpsEnvironment, p: Painter = plain): string[] =>
   matches.flatMap(({ product, commands }) => {
     const idWidth = Math.max(...commands.map((command) => command.id.length));
     return [
@@ -199,7 +200,7 @@ export const formatFind = (matches: readonly ProductCommands[], p: Painter = pla
       p('accent', product),
       ...commands.flatMap((command) => [
         `  ${command.id.padEnd(idWidth)}  ${p(command.kind === 'write' ? 'warning' : 'muted', command.kind.padEnd(5))}  ${command.summary}`,
-        `    ${runLine(product, command)}`,
+        `    ${runLine(product, command, environment)}`,
       ]),
     ];
   });
@@ -478,7 +479,7 @@ const findAcross = async (environment: OpsEnvironment, words: readonly string[],
     deps.out(`No commands match '${words.join(' ')}' in ${entries.map((entry) => entry.product).join(', ')}.`);
     return 0;
   }
-  deps.out(formatFind(matches, p).join('\n'));
+  deps.out(formatFind(matches, environment, p).join('\n'));
   return 0;
 };
 
