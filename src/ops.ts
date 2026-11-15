@@ -51,6 +51,7 @@ export const plain: Painter = (_role, text) => text;
 export type OpsRoute =
   | { kind: 'products' }
   | { kind: 'catalog'; product: string; environment: OpsEnvironment; jsonOutput: boolean }
+  | { kind: 'find'; environment: OpsEnvironment; words: string[] }
   | { kind: 'command'; product: string; environment: OpsEnvironment; commandId: string; args: string[]; yes: boolean; jsonOutput: boolean }
   | { kind: 'error'; message: string };
 
@@ -102,6 +103,10 @@ export const routeOps = (argv: readonly string[], fallback: OpsEnvironment = 'st
   const [product, second, third] = rest;
   if (product === undefined || product === '--help' || product === '-h') return { kind: 'products' };
   if (product.startsWith('-')) return { kind: 'error', message: `Unknown option ${product}. Usage: eng ops <product> [<group> <name>] [args...]` };
+  if (product === 'find') {
+    const words = rest.slice(1);
+    return words.length === 0 ? { kind: 'error', message: 'Usage: eng ops find <words...>' } : { kind: 'find', environment, words };
+  }
   if (second === undefined) return { kind: 'catalog', product: product.toLowerCase(), environment, jsonOutput };
   if (second.startsWith('-')) {
     return { kind: 'error', message: `Put the command before its options: eng ops ${product} <group> <name> ${second}` };
@@ -145,6 +150,60 @@ export const isConfirmed = (confirmation: Confirmation, answer: string | undefin
   const text = (answer ?? '').trim();
   return confirmation.kind === 'typed' ? text === confirmation.expected : /^y(es)?$/i.test(text);
 };
+
+// ---- search --------------------------------------------------------------------------------------------------
+
+export const searchWords = (text: string): string[] => text.toLowerCase().split(/\s+/).filter(Boolean);
+
+const searchText = (command: Command): string =>
+  [command.id, command.group, command.name, command.summary, ...command.fields.flatMap((field) => [field.name, field.description])]
+    .join('\n')
+    .toLowerCase();
+
+// A command matches when every word appears (any case) in its id, group, name, summary, or field names and descriptions.
+export const commandMatches = (command: Command, words: readonly string[]): boolean => {
+  const text = searchText(command);
+  return words.every((word) => text.includes(word.toLowerCase()));
+};
+
+export const filterCommands = (commands: readonly Command[], words: readonly string[]): Command[] =>
+  commands.filter((command) => commandMatches(command, words));
+
+const byText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+export type ProductCommands = { product: string; commands: readonly Command[] };
+
+// Matches grouped by product, ordered by product then command id. Products with no match are left out.
+export const findCommands = (entries: readonly ProductCommands[], words: readonly string[]): ProductCommands[] =>
+  [...entries]
+    .sort((a, b) => byText(a.product, b.product))
+    .map(({ product, commands }) => ({ product, commands: [...filterCommands(commands, words)].sort((a, b) => byText(a.id, b.id)) }))
+    .filter(({ commands }) => commands.length > 0);
+
+const fieldWord = (field: Field): string | undefined => {
+  if (field.positional) return field.required ? `<${field.name}>` : `[${field.name}]`;
+  return field.required ? `--${field.name}=<${field.name}>` : undefined;
+};
+
+// The line that runs a command: positional fields as <name> ([name] when optional), required options as --name=<name>,
+// then the environment that was searched, so copying the line never lands somewhere else (staging by default).
+export const runLine = (product: string, command: Command, environment: OpsEnvironment): string => {
+  const words = [...command.fields.filter((f) => f.positional), ...command.fields.filter((f) => !f.positional)].flatMap((f) => fieldWord(f) ?? []);
+  return ['eng', 'ops', product, command.group, command.name, ...words, '--env', environment].join(' ');
+};
+
+export const formatFind = (matches: readonly ProductCommands[], environment: OpsEnvironment, p: Painter = plain): string[] =>
+  matches.flatMap(({ product, commands }) => {
+    const idWidth = Math.max(...commands.map((command) => command.id.length));
+    return [
+      '',
+      p('accent', product),
+      ...commands.flatMap((command) => [
+        `  ${command.id.padEnd(idWidth)}  ${p(command.kind === 'write' ? 'warning' : 'muted', command.kind.padEnd(5))}  ${command.summary}`,
+        `    ${runLine(product, command, environment)}`,
+      ]),
+    ];
+  });
 
 // ---- output --------------------------------------------------------------------------------------------------
 
@@ -209,10 +268,11 @@ const groupsOf = (commands: readonly Command[]): Array<[string, Command[]]> => {
 };
 
 // Commands grouped by group: id, read or write, summary. `numbered` adds the numbers the picker asks for.
-export const formatCatalog = (catalog: Catalog, p: Painter = plain, numbered = false): string[] => {
+// `shown` limits the list to some of the commands; they keep their numbers in the whole catalog.
+export const formatCatalog = (catalog: Catalog, p: Painter = plain, numbered = false, shown: readonly Command[] = catalog.commands): string[] => {
   const idWidth = Math.max(0, ...catalog.commands.map((c) => c.id.length));
   const numberWidth = String(catalog.commands.length).length + 2;
-  return groupsOf(catalog.commands).flatMap(([group, commands]) => [
+  return groupsOf(shown).flatMap(([group, commands]) => [
     '',
     p('accent', group),
     ...commands.map((command) =>
@@ -232,6 +292,7 @@ export const formatProducts = (env: Env, p: Painter = plain): string[] => {
     '',
     p('muted', 'Usage: eng ops <product> [--env staging|production]'),
     p('muted', '       eng ops <product> <group> <name> [args...] [--yes] [--json-output]'),
+    p('muted', '       eng ops find <words...>   search every product\'s commands'),
     p('muted', 'adopt-dont-shop keeps its own `pnpm ops` and is not listed here.'),
     p('muted', 'The environment is ENG_ENV (staging unless eng --production); --env overrides it.'),
     p('muted', 'Point a product anywhere with ENG_OPS_URL_<PRODUCT>_<STAGING|PRODUCTION>.'),
@@ -311,19 +372,37 @@ const findCommand = (catalog: Catalog, answer: string): Command | undefined => {
   return byNumber ?? catalog.commands.find((command) => command.id === text);
 };
 
-// Numbered list, then one prompt per field. Blank or closed input quits.
+// Numbered list, then one prompt per field. The prompt takes a number or id, or words that filter the list: the
+// matches are shown with their numbers in the whole list, and a single match is shown the same way (enter its
+// number to pick it). Enter on a filtered list shows the whole list again; enter on the whole list, or closed input, quits.
 export const pickCommand = async (catalog: Catalog, deps: OpsDeps): Promise<{ command: Command; words: string[] } | undefined> => {
-  deps.out(formatCatalog(catalog, deps.paint, true).join('\n'));
-  deps.out('');
-  for (;;) {
-    const answer = await deps.ask('Pick a command by number or id (enter to quit): ');
-    if (answer === undefined || answer.trim() === '') return undefined;
+  const show = (shown: readonly Command[]) => deps.out(formatCatalog(catalog, deps.paint, true, shown).join('\n') + '\n');
+  show(catalog.commands);
+  for (let filtered = false; ; ) {
+    const answer = await deps.ask(
+      filtered
+        ? 'Pick a number or id, type words to filter again (enter to show all): '
+        : 'Pick a command by number or id, or type words to filter (enter to quit): ',
+    );
+    if (answer === undefined) return undefined;
+    if (answer.trim() === '') {
+      if (!filtered) return undefined;
+      show(catalog.commands);
+      filtered = false;
+      continue;
+    }
     const command = findCommand(catalog, answer);
     if (command) {
       const words = await askFields(command.fields, deps);
       return words === undefined ? undefined : { command, words };
     }
-    deps.out(deps.paint('warning', `No command '${answer.trim()}'.`));
+    const matches = filterCommands(catalog.commands, searchWords(answer));
+    if (matches.length === 0) {
+      deps.out(deps.paint('warning', `No command matches '${answer.trim()}'.`));
+      continue;
+    }
+    show(matches);
+    filtered = true;
   }
 };
 
@@ -362,6 +441,48 @@ const executeCommand = async (target: Target, command: Command, words: readonly 
   return 0;
 };
 
+// eng ops find: every product with a URL for the environment, fetched in parallel. A product that fails costs one
+// muted line (on stderr) and does not stop the others.
+const findAcross = async (environment: OpsEnvironment, words: readonly string[], deps: OpsDeps): Promise<number> => {
+  const p = deps.paint;
+  const targets = OPS_PRODUCTS.flatMap((product) => {
+    const url = resolveUrl(product, environment, deps.env);
+    return url === undefined ? [] : [{ product, url }];
+  });
+  if (targets.length === 0) {
+    deps.err(`No product has an ops URL for ${environment} yet.`);
+    return 1;
+  }
+  const token = deps.getToken();
+  if (token === undefined) {
+    deps.err(NOT_SIGNED_IN);
+    return 1;
+  }
+  const loaded = await Promise.all(
+    targets.map(async ({ product, url }) => {
+      try {
+        return { entry: { product: product.name, commands: (await fetchCatalog(url, token, deps.fetch)).commands } };
+      } catch (error) {
+        return { failure: `${product.name}: ${describeError(error, product, url)}` };
+      }
+    }),
+  );
+  loaded.forEach((result) => result.failure !== undefined && deps.err(p('muted', result.failure)));
+  const entries = loaded.flatMap((result) => result.entry ?? []);
+  if (entries.length === 0) {
+    deps.err('Could not search any product.');
+    return 1;
+  }
+  const matches = findCommands(entries, words);
+  deps.out(formatHeader('find', environment, words.join(' '), p));
+  if (matches.length === 0) {
+    deps.out(`No commands match '${words.join(' ')}' in ${entries.map((entry) => entry.product).join(', ')}.`);
+    return 0;
+  }
+  deps.out(formatFind(matches, environment, p).join('\n'));
+  return 0;
+};
+
 export const runOps = async (argv: readonly string[], deps: OpsDeps): Promise<number> => {
   const p = deps.paint;
   const session = deps.env.ENG_ENV !== undefined && isEnvironment(deps.env.ENG_ENV) ? deps.env.ENG_ENV : undefined;
@@ -374,6 +495,7 @@ export const runOps = async (argv: readonly string[], deps: OpsDeps): Promise<nu
     deps.out(formatProducts(deps.env, p).join('\n'));
     return 0;
   }
+  if (route.kind === 'find') return findAcross(route.environment, route.words, deps);
   const product = OPS_PRODUCTS.find((candidate) => candidate.name === route.product);
   if (!product) {
     deps.err(`Unknown product '${route.product}'. Products: ${OPS_PRODUCTS.map((candidate) => candidate.name).join(', ')}`);

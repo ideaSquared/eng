@@ -108,4 +108,71 @@ describe('the eng app', () => {
     await press(stdin, 'q');
     expect(chosen).toEqual([{ kind: 'quit' }]);
   });
+
+  describe('search', () => {
+    it('shows a hint, and / opens a search line', async () => {
+      const { stdin, lastFrame } = open();
+      expect(lastFrame()).toContain('/ search');
+      await press(stdin, '/');
+      expect(lastFrame()).toContain('type to filter');
+    });
+
+    it('typing "deploy ads" then Enter chooses ship deploy ads <session env>', async () => {
+      const { stdin, chosen, lastFrame } = open();
+      await press(stdin, '/', ...'deploy ads'.split(''));
+      expect(lastFrame()).toContain('Deploy › ads');
+      expect(lastFrame()).toContain('ship deploy ads staging');
+      await press(stdin, ENTER);
+      expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'ads', 'staging'] }]);
+    });
+
+    it('uses the production session in the chosen action', async () => {
+      const { stdin, chosen } = open('production');
+      await press(stdin, '/', 'logs creatr', ENTER);
+      expect(chosen).toEqual([{ kind: 'run', command: 'idea', args: ['logs', 'creatrgrid', '--env', 'production'] }]);
+    });
+
+    it('moves with the arrow keys', async () => {
+      const { stdin, chosen } = open();
+      await press(stdin, '/', 'deploy ads', DOWN, ENTER);
+      expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'ads', 'staging', '--redeploy'] }]);
+    });
+
+    it('sends q and digits to the search text while open', async () => {
+      const { stdin, chosen, lastFrame } = open();
+      await press(stdin, '/', 'q', '2');
+      expect(chosen).toEqual([]);
+      // eslint-disable-next-line no-control-regex
+      expect((lastFrame() ?? '').replace(/\x1b\[[0-9;]*m/g, '')).toContain('/ q2');
+      expect(lastFrame()).toContain('no match');
+    });
+
+    it('deletes with backspace', async () => {
+      const { stdin, lastFrame } = open();
+      await press(stdin, '/', 'doctx', '\u007F', 'o');
+      expect(lastFrame()).toContain('Doctor');
+    });
+
+    it('closes with esc and then number keys and q work again', async () => {
+      const { stdin, chosen, lastFrame } = open();
+      await press(stdin, '/', 'zzz', ESC);
+      expect(lastFrame()).not.toContain('type to filter');
+      await press(stdin, '2');
+      expect(lastFrame()).toContain('Deploy which product?');
+      await press(stdin, ESC, 'q');
+      expect(chosen).toEqual([{ kind: 'quit' }]);
+    });
+
+    it('shows at most 8 matches', async () => {
+      const { stdin, lastFrame } = open();
+      await press(stdin, '/', 'e');
+      expect((lastFrame() ?? '').split('\n').filter((l) => l.includes('›') && /ship|idea|eng/.test(l)).length).toBeLessThanOrEqual(8);
+    });
+
+    it('Enter with no match does nothing', async () => {
+      const { stdin, chosen } = open();
+      await press(stdin, '/', 'zzz', ENTER);
+      expect(chosen).toEqual([]);
+    });
+  });
 });
