@@ -1,24 +1,38 @@
 // The eng app: a themed menu over eng, ship and idea. It only chooses; the CLI runs what was chosen.
 import { Box, render, Text, useApp, useInput } from 'ink';
 import { useState } from 'react';
-import { HOME, isMenu, type Action, type Menu } from './menu.ts';
+import { homeMenu, isMenu, type Action, type Menu } from './menu.ts';
+import { envStyle, type Environment } from './session.ts';
 import { PALETTE } from './theme.ts';
 
-type Props = { onAction: (action: Action) => void; menu?: Menu };
+type Props = { env: Environment; onAction: (action: Action) => void; menu?: Menu };
 
-const Banner = () => (
-  <Box>
-    <Text color={PALETTE.primary} bold>
-      ◆ idea
-    </Text>
-    <Text color={PALETTE.accent} bold>
-      Squared
-    </Text>
-    <Text color={PALETTE.muted}> · eng</Text>
-  </Box>
-);
+const Banner = ({ env }: { env: Environment }) => {
+  const { color, badge } = envStyle(env);
+  const production = env === 'production';
+  return (
+    <Box>
+      <Text color={production ? color : PALETTE.primary} bold>
+        ◆ idea
+      </Text>
+      <Text color={production ? color : PALETTE.accent} bold>
+        Squared
+      </Text>
+      <Text color={production ? color : PALETTE.muted}> · eng </Text>
+      {production ? (
+        <Text backgroundColor={color} color={PALETTE.background} bold>
+          {` ${badge} `}
+        </Text>
+      ) : (
+        <Text color={color} bold>
+          {`[${badge}]`}
+        </Text>
+      )}
+    </Box>
+  );
+};
 
-export const App = ({ onAction, menu = HOME }: Props) => {
+export const App = ({ env, onAction, menu = homeMenu(env) }: Props) => {
   const { exit } = useApp();
   const [stack, setStack] = useState<readonly Menu[]>([menu]);
   const [cursor, setCursor] = useState(0);
@@ -57,10 +71,10 @@ export const App = ({ onAction, menu = HOME }: Props) => {
   const trail = stack.map((m) => m.title).join('  ›  ');
 
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor={PALETTE.primary} paddingX={2} paddingY={1}>
-      <Banner />
+    <Box flexDirection="column" borderStyle="round" borderColor={env === 'production' ? envStyle(env).color : PALETTE.primary} paddingX={2} paddingY={1}>
+      <Banner env={env} />
       <Box marginTop={1}>
-        <Text color={PALETTE.foreground} bold>
+        <Text color={env === 'production' ? envStyle(env).color : PALETTE.foreground} bold>
           {trail}
         </Text>
       </Box>
@@ -87,9 +101,9 @@ export const App = ({ onAction, menu = HOME }: Props) => {
 };
 
 // Shows the app until something is chosen. Ctrl+C or q counts as quit.
-export const chooseAction = async (): Promise<Action> => {
+export const chooseAction = async (env: Environment): Promise<Action> => {
   const chosen: Action[] = [];
-  const instance = render(<App onAction={(action) => chosen.push(action)} />);
+  const instance = render(<App env={env} onAction={(action) => chosen.push(action)} />);
   await instance.waitUntilExit();
   return chosen[0] ?? { kind: 'quit' };
 };

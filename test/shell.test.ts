@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { complete, COMMAND_WORDS, INITIAL_STATE, prompt, route, type ShellState } from '../src/shell.ts';
+import { complete, COMMAND_WORDS, prompt, route, type ShellState } from '../src/shell.ts';
 
 const staging: ShellState = { env: 'staging' };
 const production: ShellState = { env: 'production' };
@@ -8,12 +8,10 @@ const run = (command: 'eng' | 'ship' | 'idea', ...args: string[]) => ({ kind: 'r
 describe('routing a typed line', () => {
   it.each([
     ['deploy ads staging', run('ship', 'deploy', 'ads', 'staging')],
-    ['deploy ads production', run('ship', 'deploy', 'ads', 'production')],
     ['redeploy ads staging', run('ship', 'deploy', 'ads', 'staging', '--redeploy')],
-    ['rollback ads production', run('ship', 'rollback', 'ads', 'production')],
+    ['rollback ads staging', run('ship', 'rollback', 'ads', 'staging')],
     ['status', run('ship', 'status')],
     ['logs ads', run('idea', 'logs', 'ads', '--env', 'staging')],
-    ['logs ads production', run('idea', 'logs', 'ads', '--env', 'production')],
     ['runs ads', run('idea', 'runs', 'ads', '--failed')],
     ['doctor', run('eng', 'doctor')],
     ['update', run('eng', 'update')],
@@ -29,8 +27,24 @@ describe('routing a typed line', () => {
     expect(route('logs ads', production)).toEqual(run('idea', 'logs', 'ads', '--env', 'production'));
   });
 
-  it('lets a named environment override the current one', () => {
-    expect(route('deploy ads staging', production)).toEqual(run('ship', 'deploy', 'ads', 'staging'));
+  it('accepts a named environment that matches the session', () => {
+    expect(route('deploy ads production', production)).toEqual(run('ship', 'deploy', 'ads', 'production'));
+    expect(route('logs ads staging', staging)).toEqual(run('idea', 'logs', 'ads', '--env', 'staging'));
+  });
+
+  it.each([
+    ['deploy ads staging', production],
+    ['redeploy ads staging', production],
+    ['rollback ads staging', production],
+    ['logs ads staging', production],
+    ['deploy ads production', staging],
+    ['redeploy ads production', staging],
+    ['rollback ads production', staging],
+    ['logs ads production', staging],
+  ])('refuses %s in a mismatched session instead of overriding', (line, state) => {
+    const outcome = route(line, state);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toContain(`fixed to ${state.env}`);
   });
 
   it('passes the rest of an ops line through without assuming its shape', () => {
@@ -39,10 +53,8 @@ describe('routing a typed line', () => {
   });
 
   it('passes explicit ship and idea commands through unchanged', () => {
-    expect(route('ship deploy ads staging --redeploy', production)).toEqual(
-      run('ship', 'deploy', 'ads', 'staging', '--redeploy'),
-    );
-    expect(route('idea logs ads --env production', staging)).toEqual(run('idea', 'logs', 'ads', '--env', 'production'));
+    expect(route('ship deploy ads staging --redeploy', staging)).toEqual(run('ship', 'deploy', 'ads', 'staging', '--redeploy'));
+    expect(route('idea logs ads --env production', production)).toEqual(run('idea', 'logs', 'ads', '--env', 'production'));
   });
 
   it('ignores extra whitespace and letter case in the command word', () => {
@@ -84,6 +96,28 @@ describe('incomplete or odd lines run nothing', () => {
   it('treats shell metacharacters as plain words, so a chained command is refused', () => {
     expect(route('deploy ads; rm -rf /', staging).kind).toBe('message');
   });
+
+  // cmd.exe on Windows rewrites these before the tool sees them, so the environment check would see other words.
+  it.each([
+    'ship deploy ads produc^tion',
+    'ship deploy ads %ENV%',
+    'idea logs ads --env "production"',
+    'deploy ads !x!',
+    'status & ship deploy ads production',
+    'ship status | more',
+    'logs ads > out.txt',
+    'ops creatrgrid sync resync (x)',
+  ])('refuses %s before running anything', (line) => {
+    const outcome = route(line, staging);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toMatch(/^Refused: use only/);
+  });
+
+  it('still runs lines made of plain words, ids and --flag=value', () => {
+    expect(route('ops creatrgrid sync.resync acct_1-2 --env=staging', staging)).toEqual(
+      run('eng', 'ops', 'creatrgrid', 'sync.resync', 'acct_1-2', '--env=staging'),
+    );
+  });
 });
 
 describe('unknown words', () => {
@@ -98,21 +132,54 @@ describe('unknown words', () => {
   });
 });
 
+describe('ship and idea passthrough', () => {
+  it.each([
+    ['ship deploy ads staging', production],
+    ['ship deploy ads staging --redeploy', production],
+    ['ship rollback ads staging', production],
+    ['idea logs ads --env staging', production],
+    ['idea logs ads --env=staging', production],
+    ['idea errors ads --env staging', production],
+    ['ship deploy ads production', staging],
+    ['ship rollback ads production', staging],
+    ['idea logs ads --env production', staging],
+    ['idea logs ads --env=production', staging],
+    ['idea errors ads --env production', staging],
+  ])('refuses %s in a mismatched session', (line, state) => {
+    const outcome = route(line, state);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toContain(`Refused: this session is fixed to ${state.env}`);
+  });
+
+  it.each([
+    ['ship deploy ads production', production, run('ship', 'deploy', 'ads', 'production')],
+    ['ship rollback ads staging', staging, run('ship', 'rollback', 'ads', 'staging')],
+    ['idea logs ads --env=production', production, run('idea', 'logs', 'ads', '--env=production')],
+    ['idea errors ads --env staging', staging, run('idea', 'errors', 'ads', '--env', 'staging')],
+    ['ship status', production, run('ship', 'status')],
+    ['idea logs ads', staging, run('idea', 'logs', 'ads')],
+  ])('still runs %s as typed', (line, state, expected) => {
+    expect(route(line, state)).toEqual(expected);
+  });
+});
+
 describe('environment', () => {
-  it.each(['staging', 'production'] as const)('switches to %s', (env) => {
-    expect(route(`env ${env}`, staging)).toEqual({ kind: 'env', env, text: `environment: ${env}` });
-  });
-
-  it('shows the current one with no argument', () => {
+  it('shows the session environment with no argument', () => {
     expect(route('env', production)).toEqual({ kind: 'message', text: 'environment: production' });
+    expect(route('env', staging)).toEqual({ kind: 'message', text: 'environment: staging' });
   });
 
-  it('rejects an unknown environment', () => {
-    expect(route('env qa', staging)).toEqual({ kind: 'message', text: 'usage: env [staging|production]' });
+  it('does not switch: env production says the session is fixed and how to restart', () => {
+    const outcome = route('env production', staging);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toContain('fixed for this session (staging)');
+    expect(outcome.kind === 'message' && outcome.text).toContain('eng --production');
   });
 
-  it('starts as staging', () => {
-    expect(INITIAL_STATE.env).toBe('staging');
+  it('does not switch away from production either', () => {
+    const outcome = route('env staging', production);
+    expect(outcome.kind === 'message' && outcome.text).toContain('fixed for this session (production)');
+    expect(outcome.kind === 'message' && outcome.text).toContain('without --production');
   });
 });
 
@@ -150,7 +217,7 @@ describe('tab completion', () => {
   it('completes environments after a product and after env', () => {
     expect(complete('deploy ads st')).toEqual([['staging'], 'st']);
     expect(complete('logs ads p')[0]).toEqual(['production']);
-    expect(complete('env ')[0]).toEqual(['staging', 'production']);
+    expect(complete('env ')[0]).toEqual([]);
   });
 
   it('offers nothing further along', () => {
@@ -166,5 +233,11 @@ describe('the prompt', () => {
   it('shows one glyph and the current environment', () => {
     expect(plain(prompt(staging))).toBe('◆ staging › ');
     expect(plain(prompt(production))).toBe('◆ production › ');
+  });
+
+  it('draws production in the danger colour and staging in the accent', () => {
+    expect(prompt(production)).toContain('248;113;113');
+    expect(prompt(staging)).toContain('34;211;238');
+    expect(prompt(staging)).not.toContain('248;113;113');
   });
 });

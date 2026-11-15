@@ -12,19 +12,22 @@ import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type 
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { createInterface } from 'node:readline';
-import { BANNER, complete, INITIAL_STATE, prompt, route, type ShellState } from './shell.ts';
+import { banner, complete, prompt, route, type ShellState } from './shell.ts';
+import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment, type Environment } from './session.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
 
 const HELP = `eng: set up and update an ideaSquared developer machine
 
-  eng                          open the eng app: status, deploys, logs and runs from one themed menu
+  eng [--production]           open the eng app: status, deploys, logs and runs from one themed menu
   eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, clone and install every repo
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
-  eng shell                    a prompt for short commands: deploy, logs, runs, ops (type help inside)
+  eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
 
+The app and the shell start in staging. --production (or --env production) starts in production after a warning and
+you typing production; --env staging is the default spelled out. The environment is fixed for the session.
 Repos live in ~/ideasquared unless you pass --dir to setup (it is remembered) or set ENG_DIR.
 Every run first updates eng, ship and idea if GitHub has newer versions. ENG_NO_UPDATE=1 turns that off.`;
 
@@ -216,18 +219,18 @@ const OWN_COMMANDS = ['update', 'doctor', 'theme'];
 
 // Runs one routed command from the shell. eng's own commands run in this process, as in the menu; anything else
 // (ship, idea, eng ops) is a child. The terminal is handed over for both, so they can ask questions.
-const runFromShell = async (command: 'eng' | 'ship' | 'idea', args: string[]): Promise<void> => {
+const runFromShell = async (command: 'eng' | 'ship' | 'idea', args: string[], env: Environment): Promise<void> => {
   releaseTerminal(process.stdin);
   if (command === 'eng' && OWN_COMMANDS.includes(args[0] ?? '')) {
-    await runCommand(args[0] ?? '', reposDir());
+    await runCommand(args[0] ?? '', reposDir(), env);
     return;
   }
   if (!live(command, args)) console.log(paint(PALETTE.warning, `! ${command} did not finish cleanly. Run eng doctor if it is missing.`));
 };
 
-const shell = (): Promise<number> =>
+const shell = (env: Environment): Promise<number> =>
   new Promise((done) => {
-    let state: ShellState = INITIAL_STATE;
+    const state: ShellState = { env };
     const rl = createInterface({ input: process.stdin, output: process.stdout, completer: complete, prompt: prompt(state) });
     const ask = (): void => {
       rl.setPrompt(prompt(state));
@@ -242,11 +245,10 @@ const shell = (): Promise<number> =>
         rl.close();
         return;
       }
-      if (outcome.kind === 'env') state = { env: outcome.env };
-      if (outcome.kind === 'env' || outcome.kind === 'message') console.log(paint(PALETTE.muted, outcome.text));
+      if (outcome.kind === 'message') console.log(paint(PALETTE.muted, outcome.text));
       if (outcome.kind === 'run') {
         rl.pause();
-        await runFromShell(outcome.command, outcome.args);
+        await runFromShell(outcome.command, outcome.args, env);
         // readline needs the terminal raw (tab, history) and reading again; reclaimTerminal only restarts the read,
         // and releaseTerminal turned raw mode off for the child.
         process.stdin.ref();
@@ -270,27 +272,27 @@ const shell = (): Promise<number> =>
         done(0);
       });
     });
-    console.log(BANNER);
+    console.log(banner(state));
     ask();
   });
 
-const runCommand = (command: string, dir: string): Promise<number> | number | undefined => {
+const runCommand = (command: string, dir: string, env: Environment): Promise<number> | number | undefined => {
   if (command === 'setup') return setup(dir);
   if (command === 'update') return update(dir);
   if (command === 'doctor') return doctor(dir);
   if (command === 'theme') return installTheme(dir);
-  if (command === 'shell') return shell();
+  if (command === 'shell') return shell(env);
   return undefined;
 };
 
 // Each choice runs with the terminal attached. eng's own commands run in this process: an update replaces the
 // install folder this script was started from, so starting it again by path can fail.
-const runAction = async (action: Extract<Action, { kind: 'run' }>): Promise<void> => {
+const runAction = async (action: Extract<Action, { kind: 'run' }>, env: Environment): Promise<void> => {
   console.clear();
   // Ink unrefs stdin when the menu closes; take it back so a command can ask questions without Node exiting.
   process.stdin.ref();
   if (action.command === 'eng') {
-    await runCommand(action.args[0] ?? '', reposDir());
+    await runCommand(action.args[0] ?? '', reposDir(), env);
     return;
   }
   // ship and idea read the same terminal. Hand it over cooked (echo on) and with no read pending in this
@@ -313,35 +315,66 @@ const pressAnyKey = (): Promise<void> =>
     });
   });
 
-const launch = async (): Promise<number> => {
+const launch = async (env: Environment): Promise<number> => {
   for (;;) {
-    const action = await chooseAction();
+    const action = await chooseAction(env);
     if (action.kind === 'quit') return 0;
-    await runAction(action);
+    await runAction(action, env);
     await pressAnyKey();
     console.clear();
   }
 };
 
+// Shows the production warning and reads one line. Only the exact word production continues.
+const confirmProduction = (): Promise<boolean> =>
+  new Promise((done) => {
+    console.log(`\n${productionWarning(process.stdout.columns || 80)}\n`);
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    let answered = false;
+    rl.question(CONFIRM_PROMPT, (answer) => {
+      answered = true;
+      rl.close();
+      done(isProductionConfirmed(answer));
+    });
+    rl.on('close', () => {
+      if (!answered) done(false);
+    });
+  });
+
 const main = async (): Promise<number> => {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
-    options: { dir: { type: 'string' }, help: { type: 'boolean', short: 'h' } },
+    options: {
+      dir: { type: 'string' },
+      help: { type: 'boolean', short: 'h' },
+      production: { type: 'boolean' },
+      env: { type: 'string' },
+    },
   });
   const [command] = positionals;
+  const startup = resolveEnvironment(values);
+  if (!startup.ok) {
+    console.log(`${startup.error}\n\n${HELP}`);
+    return 1;
+  }
+  const { env } = startup;
   const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  // When eng itself updated, run the new version for what was asked, without checking again.
+  // Update first: updating eng touches no product. When eng itself updated, the new version runs what was asked
+  // (flags included) without checking again, so the production warning below is shown once, by that version.
   if (!values.help && shouldCheck(command, process.env, interactive) && (await selfUpdate())) {
     return spawn('eng', process.argv.slice(2), { stdio: 'inherit', env: { ...process.env, ENG_NO_UPDATE: '1' } }).status ?? 1;
   }
-  if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch();
+  // The warning comes before anything that can reach a product. Anything but production exits quietly.
+  if (!values.help && env === 'production' && !(await confirmProduction())) return 0;
+  process.env.ENG_ENV = env;
+  if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch(env);
   if (values.help || !command) {
     console.log(HELP);
     return values.help ? 0 : 1;
   }
   const dir = values.dir ? resolve(values.dir) : reposDir();
   if (values.dir && command === 'setup') saveConfig({ dir });
-  const result = runCommand(command, dir);
+  const result = runCommand(command, dir, env);
   if (result !== undefined) return result;
   console.log(`Unknown command: ${command}\n\n${HELP}`);
   return 1;

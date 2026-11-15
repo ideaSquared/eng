@@ -2,15 +2,16 @@ import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { App } from '../src/app.tsx';
 import type { Action } from '../src/menu.ts';
+import type { Environment } from '../src/session.ts';
 
 const DOWN = '\u001B[B';
 const ENTER = '\r';
 const ESC = '\u001B';
 const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-const open = () => {
+const open = (env: Environment = 'staging') => {
   const chosen: Action[] = [];
-  const app = render(<App onAction={(action) => chosen.push(action)} />);
+  const app = render(<App env={env} onAction={(action) => chosen.push(action)} />);
   return { ...app, chosen };
 };
 
@@ -36,13 +37,17 @@ describe('the eng app', () => {
     expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['status'] }]);
   });
 
-  it('walks to a deploy: product, then environment', async () => {
+  it('walks to a deploy: product only, with no environment step', async () => {
     const { stdin, chosen, lastFrame } = open();
     await press(stdin, '2');
     expect(lastFrame()).toContain('Deploy which product?');
     await press(stdin, '3');
-    expect(lastFrame()).toContain('Deploy creatrgrid to');
-    await press(stdin, DOWN, ENTER);
+    expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'creatrgrid', 'staging'] }]);
+  });
+
+  it('deploys to production in a production session, still without an environment step', async () => {
+    const { stdin, chosen } = open('production');
+    await press(stdin, '2', '3');
     expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'creatrgrid', 'production'] }]);
   });
 
@@ -51,9 +56,27 @@ describe('the eng app', () => {
     await press(stdin, '3');
     expect(lastFrame()).toContain('Redeploy which product?');
     await press(stdin, '1');
-    expect(lastFrame()).toContain('Redeploy ads to');
-    await press(stdin, ENTER);
     expect(chosen).toEqual([{ kind: 'run', command: 'ship', args: ['deploy', 'ads', 'staging', '--redeploy'] }]);
+  });
+
+  it('walks to logs for the session environment', async () => {
+    const { stdin, chosen } = open('production');
+    await press(stdin, '4', '1');
+    expect(chosen).toEqual([{ kind: 'run', command: 'idea', args: ['logs', 'ads', '--env', 'production'] }]);
+  });
+
+  it('shows the staging badge by default', () => {
+    const { lastFrame } = open();
+    expect(lastFrame()).toContain('[staging]');
+    expect(lastFrame()).not.toContain('PRODUCTION');
+  });
+
+  it('shows the PRODUCTION badge in a production session, on every screen', async () => {
+    const { stdin, lastFrame } = open('production');
+    expect(lastFrame()).toContain('PRODUCTION');
+    expect(lastFrame()).not.toContain('staging]');
+    await press(stdin, '2');
+    expect(lastFrame()).toContain('PRODUCTION');
   });
 
   it('goes back with esc', async () => {
