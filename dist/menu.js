@@ -33,6 +33,7 @@ export const HOME = {
             hint: 'GitHub Actions failures, with their logs',
             next: pick('Failed runs for', IDEA_PROJECTS, (p) => run('idea', ['runs', p, '--failed'])),
         },
+        { label: 'Shell', hint: 'a prompt for deploy, logs, runs and ops', next: run('eng', ['shell']) },
         { label: 'Doctor', hint: 'check what is missing or out of date', next: run('eng', ['doctor']) },
         { label: 'Update', hint: 'update the CLIs and pull every clean repo', next: run('eng', ['update']) },
         { label: 'Setup', hint: 'sign in, install and clone everything', next: run('eng', ['setup']) },
