@@ -1,7 +1,10 @@
 // eng ops: a client for every product that exposes the @ideasquared/ops contract. All the logic lives here, with the
 // terminal, the token and the network passed in, so it is tested without any of them. src/cli.ts wires them up.
-import { fetchCatalog, invoke, OpsError, parseArgs } from '@ideasquared/ops';
-import type { Catalog, Command, Fetch, Field, InvokeResponse } from '@ideasquared/ops';
+import { parseArgs } from './vendor/ops/args.ts';
+import { fetchCatalog, invoke } from './vendor/ops/client.ts';
+import type { Fetch } from './vendor/ops/client.ts';
+import { OpsError } from './vendor/ops/contract.ts';
+import type { Catalog, Command, Field, InvokeResponse } from './vendor/ops/contract.ts';
 import { paint, PALETTE } from './theme.ts';
 
 export const OPS_ENVIRONMENTS = ['staging', 'production'] as const;

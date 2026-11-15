@@ -1,6 +1,8 @@
 // eng ops: a client for every product that exposes the @ideasquared/ops contract. All the logic lives here, with the
 // terminal, the token and the network passed in, so it is tested without any of them. src/cli.ts wires them up.
-import { fetchCatalog, invoke, OpsError, parseArgs } from '@ideasquared/ops';
+import { parseArgs } from "./vendor/ops/args.js";
+import { fetchCatalog, invoke } from "./vendor/ops/client.js";
+import { OpsError } from "./vendor/ops/contract.js";
 import { paint, PALETTE } from "./theme.js";
 export const OPS_ENVIRONMENTS = ['staging', 'production'];
 // adopt-dont-shop is not here: it keeps its own `pnpm ops` for now. pairflix has no deployed URL yet; point it
