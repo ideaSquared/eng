@@ -2,7 +2,7 @@
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir, hostname } from 'node:os';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
@@ -15,13 +15,11 @@ import { banner, complete, prompt, route } from "./shell.js";
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment } from "./session.js";
 import { colour, plain, runOps } from "./ops.js";
 import { installTheme } from "./skin.js";
-import { ensureSshKey } from "./ssh-key.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
 
   eng [--production]           open the eng app: status, deploys, logs and runs from one themed menu
-  eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, create your SSH key and add its public
-                               half to GitHub, clone and install every repo
+  eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, clone and install every repo
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date
   eng theme                    install the ideaSquared terminal skin and prompt
@@ -166,16 +164,6 @@ const setup = async (dir) => {
     }
     if (!(await installGlobals()))
         return 1;
-    const sshKeyOk = ensureSshKey({
-        keyPath: join(homedir(), '.ssh', 'id_ed25519'),
-        host: hostname(),
-        exists: existsSync,
-        read: (path) => readFileSync(path, 'utf8'),
-        mkdir: (path) => mkdirSync(path, { recursive: true, mode: 0o700 }),
-        run,
-        live: (command, args) => live(command, args),
-        log: (line) => console.log(line),
-    });
     mkdirSync(dir, { recursive: true });
     const actions = REPOS.map((name) => planRepo(repoState(dir, name)));
     const cloned = actions
@@ -196,7 +184,7 @@ const setup = async (dir) => {
         console.log('');
         await installTheme(dir);
     }
-    return installed && sshKeyOk ? status : 1;
+    return installed ? status : 1;
 };
 const update = async (dir) => {
     const globalsOk = await installGlobals();
