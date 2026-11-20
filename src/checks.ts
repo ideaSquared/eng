@@ -111,3 +111,36 @@ export const canReadTeams = (headers: string | undefined): boolean => {
   const scopes = line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()) ?? [];
   return ['read:org', 'write:org', 'admin:org'].some((scope) => scopes.includes(scope));
 };
+
+const ORG_NAME = 'ideaSquared';
+
+// Whether you can use each product's `eng ops`: gh must be able to read teams, and you must be in the product's team.
+export const checkOpsAccess = (run: Run, products: readonly { name: string; team: string }[]): Result[] => {
+  if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
+    return [
+      {
+        name: 'ops access',
+        ok: false,
+        required: false,
+        detail: 'gh cannot read your GitHub teams',
+        fix: 'Run: gh auth refresh --hostname github.com --scopes read:org (or eng setup)',
+      },
+    ];
+  }
+  const listed = run('gh', ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
+  if (listed === undefined) {
+    return [{ name: 'ops access', ok: false, required: false, detail: 'could not list your GitHub teams', fix: 'Run: gh auth status' }];
+  }
+  const teams = new Set(listed.split('\n').map((line) => line.trim().toLowerCase()));
+  return products.map(({ name, team }) =>
+    teams.has(`${ORG_NAME}/${team}`.toLowerCase())
+      ? { name: `ops ${name}`, ok: true, required: false, detail: `in the ${team} team` }
+      : {
+          name: `ops ${name}`,
+          ok: false,
+          required: false,
+          detail: `not in the ${team} team`,
+          fix: `Ask to be added: https://github.com/orgs/${ORG_NAME}/teams/${team}`,
+        },
+  );
+};

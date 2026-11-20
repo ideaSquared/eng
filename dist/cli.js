@@ -7,13 +7,13 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from "./app.js";
-import { BASE_TOOLS, canReadTeams, checkGitHubLogin, checkTool, formatResults, TOOLS } from "./checks.js";
+import { BASE_TOOLS, canReadTeams, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, TOOLS } from "./checks.js";
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
 import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
 import { banner, complete, prompt, route } from "./shell.js";
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment } from "./session.js";
-import { colour, plain, runOps } from "./ops.js";
+import { colour, OPS_PRODUCTS, plain, runOps } from "./ops.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
@@ -21,7 +21,7 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng [--production]           open the eng app: status, deploys, logs and runs from one themed menu
   eng setup [--dir <folder>]   sign in to GitHub, install ship and idea, clone and install every repo
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
-  eng doctor                   check what is missing or out of date
+  eng doctor                   check what is missing or out of date, and your ops access per product
   eng theme                    install the ideaSquared terminal skin and prompt
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
   eng ops                      list the products whose ops commands eng can run
@@ -140,7 +140,9 @@ const doctor = (dir) => {
     const repoResults = REPOS.map((name) => existsSync(join(dir, name, '.git'))
         ? { name: `repo ${name}`, ok: true, required: false, detail: 'cloned' }
         : { name: `repo ${name}`, ok: false, required: false, detail: `not in ${dir}`, fix: 'Run: eng setup' });
-    const { lines, ok } = formatResults([...TOOLS.map((t) => checkTool(t, run)), checkGitHubLogin(run), ...repoResults]);
+    const login = checkGitHubLogin(run);
+    const opsResults = login.ok ? checkOpsAccess(run, OPS_PRODUCTS) : [];
+    const { lines, ok } = formatResults([...TOOLS.map((t) => checkTool(t, run)), login, ...opsResults, ...repoResults]);
     console.log(lines.join('\n'));
     console.log(ok ? '\nAll required tools are ready.' : '\nSome required tools are missing. Follow the fixes above.');
     return ok ? 0 : 1;

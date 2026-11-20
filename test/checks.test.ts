@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atLeast, canReadTeams, checkGitHubLogin, checkTool, formatResults, parseVersion, type Run, type Tool } from '../src/checks.ts';
+import { atLeast, canReadTeams, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, parseVersion, type Run, type Tool } from '../src/checks.ts';
 
 const node: Tool = {
   name: 'Node',
@@ -101,5 +101,46 @@ describe('GitHub token scopes', () => {
     expect(canReadTeams('X-Oauth-Scopes: gist, repo\n')).toBe(false);
     expect(canReadTeams('X-Oauth-Scopes: write:org-ish\n')).toBe(false);
     expect(canReadTeams(undefined)).toBe(false);
+  });
+});
+
+describe('ops access', () => {
+  const products = [
+    { name: 'creatrgrid', team: 'creatrgrid' },
+    { name: 'ads', team: 'adoptdontshop' },
+  ];
+  const gh =
+    (headers: string | undefined, teams: string | undefined): Run =>
+    (_command, args) =>
+      args.includes('-i') ? headers : args.includes('user/teams') ? teams : undefined;
+  const SCOPED = 'X-Oauth-Scopes: repo, read:org\n';
+
+  it('shows each product as ready when you are in its team', () => {
+    const results = checkOpsAccess(gh(SCOPED, 'ideaSquared/creatrgrid\nideaSquared/adoptdontshop\n'), products);
+    expect(results.map((r) => [r.name, r.ok, r.detail])).toEqual([
+      ['ops creatrgrid', true, 'in the creatrgrid team'],
+      ['ops ads', true, 'in the adoptdontshop team'],
+    ]);
+    expect(results.every((r) => !r.required)).toBe(true);
+  });
+
+  it('names the team to join for a product you cannot reach, matching the org in any case', () => {
+    const [creatrgrid, ads] = checkOpsAccess(gh(SCOPED, 'IDEASQUARED/creatrgrid\nsomeone-else/adoptdontshop\n'), products);
+    expect(creatrgrid?.ok).toBe(true);
+    expect(ads).toMatchObject({ ok: false, detail: 'not in the adoptdontshop team' });
+    expect(ads?.fix).toContain('https://github.com/orgs/ideaSquared/teams/adoptdontshop');
+  });
+
+  it('says to grant read:org, once, when gh cannot read teams', () => {
+    const results = checkOpsAccess(gh('X-Oauth-Scopes: repo\n', 'ideaSquared/creatrgrid'), products);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ name: 'ops access', ok: false, required: false });
+    expect(results[0]?.fix).toContain('gh auth refresh --hostname github.com --scopes read:org');
+  });
+
+  it('says so when the team list cannot be read', () => {
+    const results = checkOpsAccess(gh(SCOPED, undefined), products);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ name: 'ops access', ok: false, detail: 'could not list your GitHub teams' });
   });
 });

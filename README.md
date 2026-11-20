@@ -99,6 +99,8 @@ eng ops find <words...>      # search every product's commands
 - `eng update` only pulls a repo that is on its default branch with no uncommitted changes. Anything else is
   skipped and listed, so it never touches work in progress.
 - Docker is optional: only adopt-dont-shop needs it, so `eng doctor` warns rather than fails without it.
+- `eng doctor` also shows, for each product, whether you can use its `eng ops`: gh needs `read:org`, and you need to
+  be in the product's GitHub team. A missing team is a warning with the link to ask for access, not a failure.
 - Every time you run `eng`, it first checks GitHub (a quick `git ls-remote`) and updates eng, ship and idea if
   any is newer, then carries on. Offline, it skips the check. `ENG_NO_UPDATE=1` turns it off.
 - Run `eng update` whenever you start work after a break, to pull your repos too. It is safe to run any time.
