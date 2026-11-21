@@ -79,12 +79,6 @@ export const formatResults = (results) => ({
     }),
     ok: results.every((r) => r.ok || !r.required),
 });
-// Whether a GitHub token may read team membership, which every product's ops server checks. `headers` is the output
-// of `gh api -i user`; undefined (gh failed) counts as no.
-export const canReadTeams = (headers) => {
-    const scopes = parseScopes(headers) ?? [];
-    return ['read:org', 'write:org', 'admin:org'].some((scope) => scopes.includes(scope));
-};
 // The scopes in `gh api -i user` output. undefined when there is no x-oauth-scopes header (gh failed, or a token that
 // does not report scopes), so a caller can tell "no scopes" from "could not tell".
 export const parseScopes = (headers) => {
@@ -92,20 +86,29 @@ export const parseScopes = (headers) => {
     return line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()).filter(Boolean);
 };
 export const ORG_NAME = 'ideaSquared';
-// Whether you can use each product's `eng ops`: gh must be able to read teams, and you must be in the product's team.
-export const checkOpsAccess = (run, products) => {
-    if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
-        return [
-            {
-                name: 'ops access',
-                ok: false,
-                required: false,
-                detail: 'gh cannot read your GitHub teams',
-                fix: 'Run: gh auth refresh --hostname github.com --scopes read:org (or eng setup)',
-            },
-        ];
+// Where to create the eng ops token: a classic token with only read:org, pre-selected.
+export const OPS_TOKEN_URL = 'https://github.com/settings/tokens/new?scopes=read:org&description=eng%20ops';
+const OPS_TOKEN_FIX = `Create a classic token with only read:org at ${OPS_TOKEN_URL}, then set ENG_OPS_TOKEN to it (see "Set up eng ops" in the eng README).`;
+// What is wrong with the token eng ops would send, or undefined when it may be sent and can read teams. eng ops sends
+// ENG_OPS_TOKEN when set (`fromEnv`), else gh's login token; product servers replay it to GitHub, so it may carry
+// read:org and nothing else.
+const opsTokenProblem = (scopes, fromEnv) => {
+    const name = fromEnv ? 'ENG_OPS_TOKEN' : 'ENG_OPS_TOKEN is not set, and your gh login token';
+    if (scopes === undefined)
+        return fromEnv ? 'could not read the scopes of ENG_OPS_TOKEN (use a classic token)' : `${name} reports no scopes`;
+    const extra = scopes.filter((scope) => scope !== 'read:org');
+    if (extra.length > 0)
+        return `${name} can do more than read teams (${extra.join(', ')})`;
+    return scopes.includes('read:org') ? undefined : `${name} cannot read your GitHub teams (it needs read:org)`;
+};
+// Whether you can use each product's `eng ops`. `opsRun` runs gh as the token eng ops would send, so the scopes and
+// teams checked are that token's; `fromEnv` says whether it is ENG_OPS_TOKEN. Never prints the token.
+export const checkOpsAccess = (opsRun, fromEnv, products) => {
+    const problem = opsTokenProblem(parseScopes(opsRun('gh', ['api', '-i', 'user'])), fromEnv);
+    if (problem !== undefined) {
+        return [{ name: 'ops token', ok: false, required: false, detail: problem, fix: OPS_TOKEN_FIX }];
     }
-    const listed = run('gh', ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
+    const listed = opsRun('gh', ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
     if (listed === undefined) {
         return [{ name: 'ops access', ok: false, required: false, detail: 'could not list your GitHub teams', fix: 'Run: gh auth status' }];
     }

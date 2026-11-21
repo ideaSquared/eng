@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from "./app.js";
-import { BASE_TOOLS, canReadTeams, parseScopes, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, TOOLS } from "./checks.js";
+import { BASE_TOOLS, parseScopes, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, TOOLS } from "./checks.js";
 import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
 import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
@@ -141,7 +141,8 @@ const doctor = (dir) => {
         ? { name: `repo ${name}`, ok: true, required: false, detail: 'cloned' }
         : { name: `repo ${name}`, ok: false, required: false, detail: `not in ${dir}`, fix: 'Run: eng setup' });
     const login = checkGitHubLogin(run);
-    const opsResults = login.ok ? checkOpsAccess(run, OPS_PRODUCTS) : [];
+    const token = login.ok ? opsToken() : undefined;
+    const opsResults = token === undefined ? [] : checkOpsAccess((_command, args) => opsGh(token, args), opsTokenFromEnv(), OPS_PRODUCTS);
     const { lines, ok } = formatResults([...TOOLS.map((t) => checkTool(t, run)), login, ...opsResults, ...repoResults]);
     console.log(lines.join('\n'));
     console.log(ok ? '\nAll required tools are ready.' : '\nSome required tools are missing. Follow the fixes above.');
@@ -159,11 +160,9 @@ const setup = async (dir) => {
             return 1;
     }
     live('gh', ['auth', 'setup-git']);
-    // Every product's ops server checks GitHub team membership, which needs read:org.
-    if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
-        console.log('\n→ Allowing gh to read your GitHub teams (for eng ops)');
-        if (!live('gh', ['auth', 'refresh', '--hostname', 'github.com', '--scopes', 'read:org']))
-            return 1;
+    // eng ops sends ENG_OPS_TOKEN, never gh's login token (it can do more than read teams). Doctor checks it at the end.
+    if (!opsTokenFromEnv()) {
+        console.log(`\n! eng ops needs ENG_OPS_TOKEN: a classic token with only read:org. Create one at ${OPS_TOKEN_URL},\n  set ENG_OPS_TOKEN to it in your shell profile, and open a new terminal. Steps: "Set up eng ops" in the eng README.`);
     }
     if (!(await installGlobals()))
         return 1;
@@ -277,6 +276,7 @@ const shell = (env) => new Promise((done) => {
 });
 // ENG_OPS_TOKEN (a token with only read:org) when set, else `gh auth token`. Captured and never printed. eng ops
 // refuses a token that can do more than read teams, so gh's own login token (repo scope) only works once narrowed.
+const opsTokenFromEnv = () => Boolean(process.env.ENG_OPS_TOKEN?.trim());
 const opsToken = () => process.env.ENG_OPS_TOKEN?.trim() || run('gh', ['auth', 'token']) || undefined;
 // gh run as the ops token, so the scopes and teams checked are those of the token that will be sent.
 const opsGh = (token, args) => {
