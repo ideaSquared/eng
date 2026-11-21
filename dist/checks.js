@@ -82,11 +82,16 @@ export const formatResults = (results) => ({
 // Whether a GitHub token may read team membership, which every product's ops server checks. `headers` is the output
 // of `gh api -i user`; undefined (gh failed) counts as no.
 export const canReadTeams = (headers) => {
-    const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
-    const scopes = line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()) ?? [];
+    const scopes = parseScopes(headers) ?? [];
     return ['read:org', 'write:org', 'admin:org'].some((scope) => scopes.includes(scope));
 };
-const ORG_NAME = 'ideaSquared';
+// The scopes in `gh api -i user` output. undefined when there is no x-oauth-scopes header (gh failed, or a token that
+// does not report scopes), so a caller can tell "no scopes" from "could not tell".
+export const parseScopes = (headers) => {
+    const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
+    return line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()).filter(Boolean);
+};
+export const ORG_NAME = 'ideaSquared';
 // Whether you can use each product's `eng ops`: gh must be able to read teams, and you must be in the product's team.
 export const checkOpsAccess = (run, products) => {
     if (!canReadTeams(run('gh', ['api', '-i', 'user']))) {
