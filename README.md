@@ -121,14 +121,15 @@ eng ops find <words...>      # search every product's commands
 | `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
 | `find <words...>`                 | `eng ops find <words...>`                |
 | `doctor`, `update`, `theme`       | the eng command of that name             |
-| `ship <...>`, `idea <...>`        | that tool, exactly as typed              |
+| `ship <...>`, `idea <...>`        | that tool, exactly as typed (a `ship` line other than `status` must name the session's environment) |
 | `env`                             | show the session's environment (it cannot be switched) |
 | `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
 | `help <words...>`                 | only the help lines containing every word |
 
 When a deploy, redeploy, rollback or logs line names no environment, the session's is used. If it names a different
 one it is refused with a message, never overridden (`ship ...` and `idea ...` lines too, when they name the other
-environment as a word or `--env`); `env production` says the session is fixed and how to restart
+environment as a word or `--env`). A `ship ...` line that names no environment is refused too, except `ship status`:
+with no environment, ship's freeze and unfreeze act on every environment and a deploy can pick production. `env production` says the session is fixed and how to restart
 with `--production`. Tab completes commands and product
 names, and the up arrow recalls earlier lines. An unknown word runs nothing. The shell never adds `--yes`: a
 production deploy still asks you to type the product name.

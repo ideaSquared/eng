@@ -14,7 +14,7 @@ export const HELP_TEXT = `  deploy <product> [env]      ship deploy <product> <e
   ops <...>                   eng ops <...>
   find <words...>             eng ops find <words...>: search every product's ops commands
   doctor | update | theme     eng's own commands
-  ship <...> | idea <...>     run that tool as typed
+  ship <...> | idea <...>     run that tool as typed (a ship line must name the session's env)
   env                         show the session's environment (fixed at startup)
   help [words...]             this list, or only the lines matching every word
   exit | quit | Ctrl-D        leave the shell
@@ -63,10 +63,20 @@ const runs = (rest) => {
 };
 // The environment cannot be switched: any argument gets the fixed-session message.
 const showEnv = (rest, state) => message(rest.length === 0 ? `environment: ${state.env}` : fixedMessage(state.env));
-// ship and idea lines run as typed, unless they name the other environment.
+// ship lines that never act on an environment. Every other ship line with no environment word acts on all of them
+// (freeze, unfreeze) or on whichever one ship picks, which can be production.
+const SHIP_WITHOUT_ENV = ['status', 'help', '--help', '-h'];
+// ship and idea lines run as typed, unless they name the other environment, or are a ship line that names none.
 const passthrough = (command, rest, state) => {
-    const other = namedEnvironments(rest).find((env) => env !== state.env);
-    return other ? message(mismatchMessage(state.env, other)) : run(command, rest);
+    const named = namedEnvironments(rest);
+    const other = named.find((env) => env !== state.env);
+    if (other)
+        return message(mismatchMessage(state.env, other));
+    const [first] = rest;
+    if (command === 'ship' && named.length === 0 && first !== undefined && !SHIP_WITHOUT_ENV.includes(first)) {
+        return message(`Refused: name the environment. This session is ${state.env}: add ${state.env} to the line (ship ${rest.join(' ')} ${state.env}).`);
+    }
+    return run(command, rest);
 };
 const noArgs = (word, rest, outcome) => rest.length > 0 ? usage(word) : outcome;
 // On Windows every command starts through cmd.exe, which rewrites ^, %VAR%, quotes and !, and treats & | < > ( ) as

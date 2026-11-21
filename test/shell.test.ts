@@ -157,9 +157,28 @@ describe('ship and idea passthrough', () => {
     ['idea logs ads --env=production', production, run('idea', 'logs', 'ads', '--env=production')],
     ['idea errors ads --env staging', staging, run('idea', 'errors', 'ads', '--env', 'staging')],
     ['ship status', production, run('ship', 'status')],
+    ['ship status ads', staging, run('ship', 'status', 'ads')],
+    ['ship', staging, run('ship')],
+    ['ship help', staging, run('ship', 'help')],
+    ['ship freeze ads staging --reason incident', staging, run('ship', 'freeze', 'ads', 'staging', '--reason', 'incident')],
     ['idea logs ads', staging, run('idea', 'logs', 'ads')],
   ])('still runs %s as typed', (line, state, expected) => {
     expect(route(line, state)).toEqual(expected);
+  });
+
+  it.each([
+    ['ship freeze ads', staging],
+    ['ship unfreeze ads', staging],
+    ['ship deploy ads', staging],
+    ['ship ads', staging],
+    ['ship rollback ads', staging],
+    ['ship logs ads', staging],
+    ['ship diff ads', production],
+    ['ship doctor', production],
+  ])('refuses %s, which names no environment, so it cannot reach the other one', (line, state) => {
+    const outcome = route(line, state);
+    expect(outcome.kind).toBe('message');
+    expect(outcome.kind === 'message' && outcome.text).toContain(`Refused: name the environment. This session is ${state.env}`);
   });
 });
 
