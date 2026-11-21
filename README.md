@@ -149,11 +149,10 @@ eng ops find resync                             # which command does that? searc
 ```
 
 - It sends a GitHub token (never printed) that a product server replays to GitHub to check your team, so eng refuses
-  any token that can do more than read teams: one with `repo`, `public_repo`, `workflow`, `delete_repo`, `write:*` or
-  `admin:*`, or whose scopes it cannot read. Create a token with only `read:org` and set `ENG_OPS_TOKEN` to it; without
-  it eng uses `gh auth token`, which `gh auth login` gives `repo` scope, so that is refused. Access is membership of the
-  product's GitHub team (`creatrgrid`, `pairflix`, `adoptdontshop`). If gh is not signed in, run `gh auth login` or
-  `eng setup`.
+  any token with a scope other than `read:org` (`repo`, `gist`, `user`, `workflow`, `write:*` and so on), or whose
+  scopes it cannot read. Create a token with only `read:org` and set `ENG_OPS_TOKEN` to it; without it eng uses
+  `gh auth token`, which `gh auth login` gives `repo` scope, so that is refused. Access is membership of the product's
+  GitHub team (`creatrgrid`, `pairflix`, `adoptdontshop`). If gh is not signed in, run `gh auth login` or `eng setup`.
 - A product URL must be `https://` (plain `http://` only for `localhost` or `127.0.0.1`); eng refuses to send the token
   anywhere else.
 - The environment is `ENG_ENV` (`staging` unless the session is production); `--env` overrides it. It is always shown

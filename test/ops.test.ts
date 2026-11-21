@@ -590,6 +590,34 @@ describe('what may leave the machine', () => {
     expect(h.calls).toEqual([]);
   });
 
+  it('refuses any scope other than read:org, including gist and user', () => {
+    for (const scopes of [['read:org', 'gist'], ['user'], ['read:user'], ['read:org', 'user:email'], ['notifications']]) {
+      expect(tokenProblem({ token: 't', scopes })).toContain('ENG_OPS_TOKEN');
+    }
+  });
+
+  it('find skips a bad URL of a product the user is not in, and still searches the rest', async () => {
+    const env = { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid', ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' };
+    const h = harness([], { env, teams: ['ideasquared/creatrgrid'] });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.calls.map((c) => c.path)).toEqual(['/creatrgrid/catalog']);
+    expect(h.err).toEqual([]);
+  });
+
+  it('find reports and skips a bad URL of a product the user is in, without sending to it', async () => {
+    const env = { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid', ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' };
+    const h = harness([], { env, teams: ['ideasquared/creatrgrid', 'ideasquared/pairflix'] });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.calls.map((c) => c.path)).toEqual(['/creatrgrid/catalog']);
+    expect(h.err.join('\n')).toContain('ENG_OPS_URL_PAIRFLIX_STAGING');
+  });
+
+  it('find exits 1 when every product the user is in has a bad URL', async () => {
+    const h = harness([], { env: { ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' }, teams: ['ideasquared/pairflix'] });
+    expect(await runOps(['find', 'x'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+  });
+
   it('accepts a read:org only token', () => {
     expect(tokenProblem({ token: 't', scopes: ['read:org'] })).toBeUndefined();
     expect(tokenProblem({ token: 't', scopes: [] })).toBeUndefined();

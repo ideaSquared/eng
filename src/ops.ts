@@ -335,15 +335,15 @@ export const describeError = (error: unknown, product: OpsProduct | undefined, u
 
 // ---- what may leave the machine ------------------------------------------------------------------------------
 
-// The token goes to product servers, which replay it to GitHub: so it must be able to do nothing but read teams.
-const UNSAFE_SCOPE = /^(repo(:.+)?|public_repo|workflow|delete_repo|(write|admin):.+)$/;
+// The token goes to product servers, which replay it to GitHub: so it may carry read:org and nothing else.
+const ALLOWED_SCOPES: readonly string[] = ['read:org'];
 
 export type OpsCredential = { token: string; scopes: readonly string[] | undefined };
 
 // Why this credential must not be sent, or undefined when it may be. Unknown scopes count as unsafe.
 export const tokenProblem = ({ scopes }: OpsCredential): string | undefined => {
   if (scopes === undefined) return 'Refusing to send your GitHub token to an ops server: could not tell what it may do.';
-  const unsafe = scopes.filter((scope) => UNSAFE_SCOPE.test(scope));
+  const unsafe = scopes.filter((scope) => !ALLOWED_SCOPES.includes(scope));
   return unsafe.length === 0
     ? undefined
     : `Refusing to send your GitHub token to an ops server: it can do more than read teams (${unsafe.join(', ')}). Set ENG_OPS_TOKEN to a token with only read:org.`;
@@ -497,7 +497,7 @@ const findAcross = async (environment: OpsEnvironment, words: readonly string[],
     deps.err(NOT_SIGNED_IN);
     return 1;
   }
-  const refusal = tokenProblem(credential) ?? candidates.flatMap(({ product, url }) => urlProblem(url, overrideVar(product.name, environment)) ?? [])[0];
+  const refusal = tokenProblem(credential);
   if (refusal !== undefined) {
     deps.err(refusal);
     return 1;
@@ -507,11 +507,16 @@ const findAcross = async (environment: OpsEnvironment, words: readonly string[],
     deps.err('Could not list your GitHub teams. Run: eng doctor');
     return 1;
   }
-  const targets = candidates.filter(({ product }) => teams.includes(`${ORG_NAME}/${product.team}`.toLowerCase()));
-  if (targets.length === 0) {
+  const eligible = candidates.filter(({ product }) => teams.includes(`${ORG_NAME}/${product.team}`.toLowerCase()));
+  if (eligible.length === 0) {
     deps.err(`You are not in the team of any product with an ops URL for ${environment}. Run: eng doctor`);
     return 1;
   }
+  // Only products the token would reach are checked: a bad URL for a product you are not in is never contacted.
+  const checked = eligible.map(({ product, url }) => ({ product, url, problem: urlProblem(url, overrideVar(product.name, environment)) }));
+  checked.forEach(({ problem }) => problem !== undefined && deps.err(p('muted', problem)));
+  const targets = checked.flatMap(({ product, url, problem }) => (problem === undefined ? [{ product, url }] : []));
+  if (targets.length === 0) return 1;
   const { token } = credential;
   const loaded = await Promise.all(
     targets.map(async ({ product, url }) => {
