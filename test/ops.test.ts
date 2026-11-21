@@ -20,6 +20,8 @@ import {
   plain,
   resolveUrl,
   routeOps,
+  tokenProblem,
+  urlProblem,
   runLine,
   runOps,
   searchWords,
@@ -229,7 +231,7 @@ const CATALOG: Catalog = {
 
 type Harness = { deps: OpsDeps; out: string[]; err: string[]; asked: string[]; calls: Array<{ path: string; auth: string | null; body?: unknown }> };
 
-const harness = (answers: Array<string | undefined>, options: { token?: string | undefined; env?: Record<string, string>; interactive?: boolean; failWith?: Response } = {}): Harness => {
+const harness = (answers: Array<string | undefined>, options: { token?: string | undefined; scopes?: string[] | undefined; teams?: string[] | undefined; env?: Record<string, string>; interactive?: boolean; failWith?: Response } = {}): Harness => {
   const out: string[] = [];
   const err: string[] = [];
   const asked: string[] = [];
@@ -247,9 +249,13 @@ const harness = (answers: Array<string | undefined>, options: { token?: string |
     return Response.json({ command: request.command, mode, result: { accountId: request.args.accountId ?? null, did: mode }, summary: `${mode} done` });
   };
   const deps: OpsDeps = {
-    env: options.env ?? { ENG_OPS_URL_CREATRGRID_STAGING: 'http://ops.test/ops', ENG_OPS_URL_CREATRGRID_PRODUCTION: 'http://ops.test/prod' },
+    env: options.env ?? { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/ops', ENG_OPS_URL_CREATRGRID_PRODUCTION: 'https://ops.test/prod' },
     fetch,
-    getToken: () => ('token' in options ? options.token : 'secret-token'),
+    getToken: () => {
+      const token = 'token' in options ? options.token : 'secret-token';
+      return token === undefined ? undefined : { token, scopes: 'scopes' in options ? options.scopes : ['read:org'] };
+    },
+    getTeams: () => ('teams' in options ? options.teams : ['ideasquared/creatrgrid', 'ideasquared/pairflix', 'ideasquared/adoptdontshop']),
     ask: async (prompt) => {
       asked.push(prompt);
       return queue.shift();
@@ -330,7 +336,7 @@ describe('running ops commands end to end, with the real client', () => {
   });
 
   it('uses ENG_ENV as the environment when --env is absent', async () => {
-    const h = harness(['creatrgrid'], { env: { ENG_ENV: 'production', ENG_OPS_URL_CREATRGRID_PRODUCTION: 'http://ops.test/prod' } });
+    const h = harness(['creatrgrid'], { env: { ENG_ENV: 'production', ENG_OPS_URL_CREATRGRID_PRODUCTION: 'https://ops.test/prod' } });
     expect(await runOps(['creatrgrid', 'accounts.resync', 'acct_1'], h.deps)).toBe(0);
     expect(h.asked).toEqual(['Type creatrgrid to continue: ']);
   });
@@ -471,10 +477,10 @@ describe('eng ops find', () => {
     commands: [{ id: 'households.resync', group: 'households', name: 'resync', summary: 'Resync a household', kind: 'write', dryRun: false, fields: [] }],
   };
   const env = {
-    ENG_OPS_URL_CREATRGRID_STAGING: 'http://ops.test/creatrgrid',
-    ENG_OPS_URL_PAIRFLIX_STAGING: 'http://ops.test/pairflix',
-    ENG_OPS_URL_CREATRGRID_PRODUCTION: 'http://ops.test/prod',
-    ENG_OPS_URL_ADS_STAGING: 'http://ops.test/ads',
+    ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid',
+    ENG_OPS_URL_PAIRFLIX_STAGING: 'https://ops.test/pairflix',
+    ENG_OPS_URL_CREATRGRID_PRODUCTION: 'https://ops.test/prod',
+    ENG_OPS_URL_ADS_STAGING: 'https://ops.test/ads',
   };
 
   it('routes find with words, and refuses it with none', () => {
@@ -496,7 +502,7 @@ describe('eng ops find', () => {
       return String(input).includes('/pairflix/') ? Response.json(PAIRFLIX) : base!(input, init);
     };
     expect(await runOps(['find', 'RESYNC'], h.deps)).toBe(0);
-    expect(urls.sort()).toEqual(['http://ops.test/ads/catalog', 'http://ops.test/creatrgrid/catalog', 'http://ops.test/pairflix/catalog']);
+    expect(urls.sort()).toEqual(['https://ops.test/ads/catalog', 'https://ops.test/creatrgrid/catalog', 'https://ops.test/pairflix/catalog']);
     const text = h.out.join('\n');
     expect(text.indexOf('creatrgrid')).toBeLessThan(text.indexOf('pairflix'));
     expect(text).toContain('eng ops creatrgrid accounts resync <accountId>');
@@ -558,5 +564,106 @@ describe('the picker filter', () => {
     const h = harness([''], { interactive: true });
     expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
     expect(h.asked).toHaveLength(1);
+  });
+});
+
+describe('what may leave the machine', () => {
+  it('refuses a token that can write, and sends nothing', async () => {
+    for (const scopes of [['repo', 'read:org'], ['workflow'], ['write:packages'], ['admin:org'], ['public_repo']]) {
+      const h = harness([], { scopes });
+      expect(await runOps(['creatrgrid', 'accounts', 'list'], h.deps)).toBe(1);
+      expect(h.calls).toEqual([]);
+      expect(h.err.join('\n')).toContain('ENG_OPS_TOKEN');
+      expect(h.err.join('\n')).not.toContain('secret-token');
+    }
+  });
+
+  it('refuses a token whose scopes could not be read', async () => {
+    const h = harness([], { scopes: undefined });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('refuses a risky token for find too, before any request', async () => {
+    const h = harness([], { scopes: ['repo'], env: { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/c' } });
+    expect(await runOps(['find', 'x'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('refuses any scope other than read:org, including gist and user', () => {
+    for (const scopes of [['read:org', 'gist'], ['user'], ['read:user'], ['read:org', 'user:email'], ['notifications']]) {
+      expect(tokenProblem({ token: 't', scopes })).toContain('ENG_OPS_TOKEN');
+    }
+  });
+
+  it('find skips a bad URL of a product the user is not in, and still searches the rest', async () => {
+    const env = { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid', ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' };
+    const h = harness([], { env, teams: ['ideasquared/creatrgrid'] });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.calls.map((c) => c.path)).toEqual(['/creatrgrid/catalog']);
+    expect(h.err).toEqual([]);
+  });
+
+  it('find reports and skips a bad URL of a product the user is in, without sending to it', async () => {
+    const env = { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid', ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' };
+    const h = harness([], { env, teams: ['ideasquared/creatrgrid', 'ideasquared/pairflix'] });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.calls.map((c) => c.path)).toEqual(['/creatrgrid/catalog']);
+    expect(h.err.join('\n')).toContain('ENG_OPS_URL_PAIRFLIX_STAGING');
+  });
+
+  it('find exits 1 when every product the user is in has a bad URL', async () => {
+    const h = harness([], { env: { ENG_OPS_URL_PAIRFLIX_STAGING: 'http://evil.example' }, teams: ['ideasquared/pairflix'] });
+    expect(await runOps(['find', 'x'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+  });
+
+  it('accepts a read:org only token', () => {
+    expect(tokenProblem({ token: 't', scopes: ['read:org'] })).toBeUndefined();
+    expect(tokenProblem({ token: 't', scopes: [] })).toBeUndefined();
+  });
+
+  it('rejects a non-https ops URL except localhost', () => {
+    expect(urlProblem('http://evil.example', 'V')).toContain('must be https');
+    expect(urlProblem('ftp://x.example', 'V')).toContain('must be https');
+    expect(urlProblem('not a url', 'V')).toContain('must be https');
+    expect(urlProblem('http://localhost.evil.example', 'V')).toContain('must be https');
+    expect(urlProblem('http://localhost:8787', 'V')).toBeUndefined();
+    expect(urlProblem('http://127.0.0.1:8787/ops', 'V')).toBeUndefined();
+    expect(urlProblem('https://api.creatrgrid.com/api/v1/ops', 'V')).toBeUndefined();
+  });
+
+  it('does not send the token to an http override, and names the variable', async () => {
+    const h = harness([], { env: { ENG_OPS_URL_CREATRGRID_STAGING: 'http://evil.example' } });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(1);
+    expect(h.calls).toEqual([]);
+    expect(h.err.join('\n')).toContain('ENG_OPS_URL_CREATRGRID_STAGING');
+  });
+
+  it('sends to a localhost override', async () => {
+    const h = harness([], { env: { ENG_OPS_URL_CREATRGRID_STAGING: 'http://localhost:8787/ops' } });
+    expect(await runOps(['creatrgrid'], h.deps)).toBe(0);
+    expect(h.calls[0]).toMatchObject({ path: '/ops/catalog' });
+  });
+
+  it('find contacts only products whose team the user is in', async () => {
+    const env = {
+      ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid',
+      ENG_OPS_URL_PAIRFLIX_STAGING: 'https://ops.test/pairflix',
+      ENG_OPS_URL_ADS_STAGING: 'https://ops.test/ads',
+    };
+    const h = harness([], { env, teams: ['ideasquared/creatrgrid', 'someone-else/pairflix'] });
+    expect(await runOps(['find', 'resync'], h.deps)).toBe(0);
+    expect(h.calls.map((c) => c.path)).toEqual(['/creatrgrid/catalog']);
+  });
+
+  it('find matches the team case-insensitively and fails without a request when in no team or teams are unlistable', async () => {
+    const env = { ENG_OPS_URL_CREATRGRID_STAGING: 'https://ops.test/creatrgrid' };
+    const none = harness([], { env, teams: [] });
+    expect(await runOps(['find', 'x'], none.deps)).toBe(1);
+    expect(none.calls).toEqual([]);
+    const unknown = harness([], { env, teams: undefined });
+    expect(await runOps(['find', 'x'], unknown.deps)).toBe(1);
+    expect(unknown.calls).toEqual([]);
   });
 });

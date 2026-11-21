@@ -23,12 +23,14 @@ The installer:
 2. installs the `eng` CLI;
 3. runs `eng setup`, which:
    - signs you in to GitHub in your browser (`gh auth login`) and lets git use that sign-in;
-   - lets gh read your GitHub teams (`read:org`), which `eng ops` access is checked against;
+   - tells you to create an `ENG_OPS_TOKEN` if you have not (see [Set up eng ops](#set-up-eng-ops-once));
    - installs the `ship` (deploys) and `idea` (sanitised logs) CLIs;
    - clones every ideaSquared repo you have access to into `~/ideasquared` and runs `pnpm install` in each;
    - finishes with `eng doctor`.
 
 Open a new terminal afterwards so the PATH changes apply everywhere.
+
+To use `eng ops`, also do [Set up eng ops](#set-up-eng-ops-once) once.
 
 Before you start, ask for:
 
@@ -137,8 +139,27 @@ production deploy still asks you to type the product name.
 ## Ops
 
 `eng ops` drives any product that exposes the [`@ideasquared/ops`](https://github.com/ideaSquared/agent-idea/tree/main/packages/ops)
-contract: creatrgrid and ads (adopt-dont-shop) today, pairflix once it is deployed. All of them are plain HTTPS, so
-there is nothing to set up beyond `gh auth login`. For ads, unlocks and history stay in adopt-dont-shop's `pnpm ops`.
+contract: creatrgrid and ads (adopt-dont-shop) today, pairflix once it is deployed. It needs a GitHub token of its own,
+`ENG_OPS_TOKEN`: set it up once with the steps below. For ads, unlocks and history stay in adopt-dont-shop's `pnpm ops`.
+
+### Set up eng ops (once)
+
+`eng ops` sends a GitHub token to each product's ops server, which asks GitHub whether you are in the product's team.
+Your normal `gh` login token can read and write every repo you can, so eng refuses to send it. Instead you give eng a
+token that can only read your team memberships:
+
+1. Open https://github.com/settings/tokens/new?scopes=read:org&description=eng%20ops (a **classic** token, not
+   fine-grained). Pick an expiry, tick **only** `read:org`, and click **Generate token**. Copy it: GitHub shows it once.
+2. If the token list shows **Configure SSO** next to it, click it and authorise `ideaSquared`.
+3. Save it in your shell profile, never in a repo or a chat:
+   - macOS or Linux: add `export ENG_OPS_TOKEN='<your token>'` to `~/.zshrc` or `~/.bashrc`.
+   - Windows (PowerShell): `setx ENG_OPS_TOKEN "<your token>"`.
+4. Open a new terminal and run `eng doctor`. Each product shows `✓ ops <product>: in the <team> team`. If it shows
+   `! ops token`, follow the fix it prints: usually the token has a scope other than `read:org`.
+5. When the token expires, repeat steps 1 to 4.
+
+Access is membership of the product's GitHub team (`creatrgrid`, `pairflix`, `adoptdontshop`). `eng doctor` names the
+team to ask for if you are not in it.
 
 ```bash
 eng ops creatrgrid                              # commands, grouped; in a terminal, pick one and answer its fields
@@ -148,9 +169,13 @@ eng ops creatrgrid accounts resync acct_1 --yes --env production --json-output
 eng ops find resync                             # which command does that? searches every product at once
 ```
 
-- It uses your own `gh auth token` (never printed). Access is membership of the product's GitHub team (`creatrgrid`,
-  `pairflix`, `adoptdontshop`), so the token needs `read:org`: `gh auth refresh -s read:org`. If gh is not signed in,
-  run `gh auth login` or `eng setup`.
+- It sends a GitHub token (never printed) that a product server replays to GitHub to check your team, so eng refuses
+  any token with a scope other than `read:org` (`repo`, `gist`, `user`, `workflow`, `write:*` and so on), or whose
+  scopes it cannot read. Create a token with only `read:org` and set `ENG_OPS_TOKEN` to it; without it eng uses
+  `gh auth token`, which `gh auth login` gives `repo` scope, so that is refused. Access is membership of the product's
+  GitHub team (`creatrgrid`, `pairflix`, `adoptdontshop`). If gh is not signed in, run `gh auth login` or `eng setup`.
+- A product URL must be `https://` (plain `http://` only for `localhost` or `127.0.0.1`); eng refuses to send the token
+  anywhere else.
 - The environment is `ENG_ENV` (`staging` unless the session is production); `--env` overrides it. It is always shown
   in the header line, production in red.
 - A write with a preview shows it first. Staging then asks `Run <id> on <product> staging? [y/N]` (`--yes` skips it).
@@ -166,7 +191,7 @@ eng ops find resync                             # which command does that? searc
 
 ### Finding a command
 
-`eng ops find <words...>` searches every product that has an ops URL for the current environment (the session's, or
+`eng ops find <words...>` searches every product that has an ops URL for the current environment and whose team you are in (the session's, or
 `--env`; the session lock applies as for any ops command), fetching their catalogs in parallel. A command matches when
 every word (any case) appears in its id, group, name, summary, or a field's name or description. Matches are printed
 grouped by product (then by id) with the exact line to run, positional and required fields shown as `<name>`:

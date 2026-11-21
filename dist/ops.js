@@ -3,6 +3,7 @@
 import { parseArgs } from "./vendor/ops/args.js";
 import { fetchCatalog, invoke } from "./vendor/ops/client.js";
 import { OpsError } from "./vendor/ops/contract.js";
+import { ORG_NAME } from "./checks.js";
 import { paint, PALETTE } from "./theme.js";
 export const OPS_ENVIRONMENTS = ['staging', 'production'];
 // pairflix has no deployed URL yet; point it anywhere with ENG_OPS_URL_PAIRFLIX_STAGING (or _PRODUCTION) until it
@@ -268,6 +269,24 @@ export const describeError = (error, product, url) => {
             return `The ops server failed: ${error.message}`;
     }
 };
+// ---- what may leave the machine ------------------------------------------------------------------------------
+// The token goes to product servers, which replay it to GitHub: so it may carry read:org and nothing else.
+const ALLOWED_SCOPES = ['read:org'];
+// Why this credential must not be sent, or undefined when it may be. Unknown scopes count as unsafe.
+export const tokenProblem = ({ scopes }) => {
+    if (scopes === undefined)
+        return 'Refusing to send your GitHub token to an ops server: could not tell what it may do.';
+    const unsafe = scopes.filter((scope) => !ALLOWED_SCOPES.includes(scope));
+    return unsafe.length === 0
+        ? undefined
+        : `Refusing to send your GitHub token to an ops server: it can do more than read teams (${unsafe.join(', ')}). Set ENG_OPS_TOKEN to a token with only read:org.`;
+};
+// https, or plain http to this machine for a test server.
+export const urlProblem = (url, variable) => {
+    const parsed = URL.canParse(url) ? new URL(url) : undefined;
+    const ok = parsed !== undefined && (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname)));
+    return ok ? undefined : `Refusing to send your GitHub token to ${url}: ops URLs must be https (http only for localhost). Fix ${variable}.`;
+};
 export const NOT_SIGNED_IN = 'Not signed in to GitHub. Run: gh auth login (or eng setup)';
 const fieldPrompt = (field, p) => {
     const kind = field.type === 'enum' ? `one of: ${(field.values ?? []).join(' | ')}` : field.type === 'boolean' ? 'y/n' : field.type;
@@ -374,19 +393,41 @@ const executeCommand = async (target, command, words, deps) => {
 // muted line (on stderr) and does not stop the others.
 const findAcross = async (environment, words, deps) => {
     const p = deps.paint;
-    const targets = OPS_PRODUCTS.flatMap((product) => {
+    const candidates = OPS_PRODUCTS.flatMap((product) => {
         const url = resolveUrl(product, environment, deps.env);
         return url === undefined ? [] : [{ product, url }];
     });
-    if (targets.length === 0) {
+    if (candidates.length === 0) {
         deps.err(`No product has an ops URL for ${environment} yet.`);
         return 1;
     }
-    const token = deps.getToken();
-    if (token === undefined) {
+    const credential = deps.getToken();
+    if (credential === undefined) {
         deps.err(NOT_SIGNED_IN);
         return 1;
     }
+    const refusal = tokenProblem(credential);
+    if (refusal !== undefined) {
+        deps.err(refusal);
+        return 1;
+    }
+    const teams = deps.getTeams();
+    if (teams === undefined) {
+        deps.err('Could not list your GitHub teams. Run: eng doctor');
+        return 1;
+    }
+    const eligible = candidates.filter(({ product }) => teams.includes(`${ORG_NAME}/${product.team}`.toLowerCase()));
+    if (eligible.length === 0) {
+        deps.err(`You are not in the team of any product with an ops URL for ${environment}. Run: eng doctor`);
+        return 1;
+    }
+    // Only products the token would reach are checked: a bad URL for a product you are not in is never contacted.
+    const checked = eligible.map(({ product, url }) => ({ product, url, problem: urlProblem(url, overrideVar(product.name, environment)) }));
+    checked.forEach(({ problem }) => problem !== undefined && deps.err(p('muted', problem)));
+    const targets = checked.flatMap(({ product, url, problem }) => (problem === undefined ? [{ product, url }] : []));
+    if (targets.length === 0)
+        return 1;
+    const { token } = credential;
     const loaded = await Promise.all(targets.map(async ({ product, url }) => {
         try {
             return { entry: { product: product.name, commands: (await fetchCatalog(url, token, deps.fetch)).commands } };
@@ -435,11 +476,17 @@ export const runOps = async (argv, deps) => {
         deps.err(`${product.name} is not deployed to ${route.environment} yet: ${hint}`);
         return 1;
     }
-    const token = deps.getToken();
-    if (token === undefined) {
+    const credential = deps.getToken();
+    if (credential === undefined) {
         deps.err(NOT_SIGNED_IN);
         return 1;
     }
+    const refusal = tokenProblem(credential) ?? urlProblem(url, overrideVar(product.name, route.environment));
+    if (refusal !== undefined) {
+        deps.err(refusal);
+        return 1;
+    }
+    const { token } = credential;
     const yes = route.kind === 'command' && route.yes;
     const target = { product, environment: route.environment, url, token, yes, jsonOutput: route.jsonOutput };
     try {

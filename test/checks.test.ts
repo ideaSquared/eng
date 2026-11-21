@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atLeast, canReadTeams, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, parseVersion, type Run, type Tool } from '../src/checks.ts';
+import { atLeast, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, parseVersion, type Run, type Tool } from '../src/checks.ts';
 
 const node: Tool = {
   name: 'Node',
@@ -86,37 +86,21 @@ describe('formatResults', () => {
   });
 });
 
-describe('GitHub token scopes', () => {
-  it('reads the scopes from the response headers of gh api -i', () => {
-    const headers = 'HTTP/2.0 200 OK\nContent-Type: application/json\nX-Oauth-Scopes: gist, read:org, repo\n\n{"login":"x"}';
-    expect(canReadTeams(headers)).toBe(true);
-  });
-
-  it('accepts admin:org and write:org, which include read:org', () => {
-    expect(canReadTeams('X-OAuth-Scopes: repo, admin:org\n')).toBe(true);
-    expect(canReadTeams('X-OAuth-Scopes: repo, write:org\n')).toBe(true);
-  });
-
-  it('says no when read:org is missing or the headers cannot be read', () => {
-    expect(canReadTeams('X-Oauth-Scopes: gist, repo\n')).toBe(false);
-    expect(canReadTeams('X-Oauth-Scopes: write:org-ish\n')).toBe(false);
-    expect(canReadTeams(undefined)).toBe(false);
-  });
-});
-
 describe('ops access', () => {
   const products = [
     { name: 'creatrgrid', team: 'creatrgrid' },
     { name: 'ads', team: 'adoptdontshop' },
   ];
+  // gh run as the token eng ops would send.
   const gh =
     (headers: string | undefined, teams: string | undefined): Run =>
     (_command, args) =>
       args.includes('-i') ? headers : args.includes('user/teams') ? teams : undefined;
-  const SCOPED = 'X-Oauth-Scopes: repo, read:org\n';
+  const READ_ORG = 'HTTP/2.0 200 OK\nX-Oauth-Scopes: read:org\n\n{"login":"x"}';
+  const TEAMS = 'ideaSquared/creatrgrid\nideaSquared/adoptdontshop\n';
 
-  it('shows each product as ready when you are in its team', () => {
-    const results = checkOpsAccess(gh(SCOPED, 'ideaSquared/creatrgrid\nideaSquared/adoptdontshop\n'), products);
+  it('shows each product as ready when ENG_OPS_TOKEN has only read:org and you are in its team', () => {
+    const results = checkOpsAccess(gh(READ_ORG, TEAMS), true, products);
     expect(results.map((r) => [r.name, r.ok, r.detail])).toEqual([
       ['ops creatrgrid', true, 'in the creatrgrid team'],
       ['ops ads', true, 'in the adoptdontshop team'],
@@ -125,22 +109,52 @@ describe('ops access', () => {
   });
 
   it('names the team to join for a product you cannot reach, matching the org in any case', () => {
-    const [creatrgrid, ads] = checkOpsAccess(gh(SCOPED, 'IDEASQUARED/creatrgrid\nsomeone-else/adoptdontshop\n'), products);
+    const [creatrgrid, ads] = checkOpsAccess(gh(READ_ORG, 'IDEASQUARED/creatrgrid\nsomeone-else/adoptdontshop\n'), true, products);
     expect(creatrgrid?.ok).toBe(true);
     expect(ads).toMatchObject({ ok: false, detail: 'not in the adoptdontshop team' });
     expect(ads?.fix).toContain('https://github.com/orgs/ideaSquared/teams/adoptdontshop');
   });
 
-  it('says to grant read:org, once, when gh cannot read teams', () => {
-    const results = checkOpsAccess(gh('X-Oauth-Scopes: repo\n', 'ideaSquared/creatrgrid'), products);
+  it('says to set ENG_OPS_TOKEN, with the token link, when it is unset and the gh token can do more', () => {
+    const results = checkOpsAccess(gh('X-Oauth-Scopes: repo, read:org\n', TEAMS), false, products);
     expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({ name: 'ops access', ok: false, required: false });
-    expect(results[0]?.fix).toContain('gh auth refresh --hostname github.com --scopes read:org');
+    expect(results[0]).toMatchObject({ name: 'ops token', ok: false, required: false });
+    expect(results[0]?.detail).toContain('ENG_OPS_TOKEN is not set');
+    expect(results[0]?.detail).toContain('repo');
+    expect(results[0]?.fix).toContain(OPS_TOKEN_URL);
+    expect(results[0]?.fix).toContain('ENG_OPS_TOKEN');
+  });
+
+  it('names the extra scopes when ENG_OPS_TOKEN can do more than read teams', () => {
+    const [result] = checkOpsAccess(gh('X-Oauth-Scopes: gist, read:org, user\n', TEAMS), true, products);
+    expect(result).toMatchObject({ name: 'ops token', ok: false });
+    expect(result?.detail).toBe('ENG_OPS_TOKEN can do more than read teams (gist, user)');
+    expect(result?.fix).toContain(OPS_TOKEN_URL);
+  });
+
+  it('says ENG_OPS_TOKEN needs read:org when it has no scopes', () => {
+    const [result] = checkOpsAccess(gh('X-Oauth-Scopes: \n', TEAMS), true, products);
+    expect(result).toMatchObject({ name: 'ops token', ok: false, detail: 'ENG_OPS_TOKEN cannot read your GitHub teams (it needs read:org)' });
+  });
+
+  it('refuses a token whose scopes cannot be read, such as a fine-grained token', () => {
+    const [result] = checkOpsAccess(gh('HTTP/2.0 200 OK\n\n{}', TEAMS), true, products);
+    expect(result).toMatchObject({ name: 'ops token', ok: false, detail: 'could not read the scopes of ENG_OPS_TOKEN (use a classic token)' });
+  });
+
+  it('accepts the gh token when ENG_OPS_TOKEN is unset but the gh token has only read:org', () => {
+    const results = checkOpsAccess(gh(READ_ORG, TEAMS), false, products);
+    expect(results.every((r) => r.ok)).toBe(true);
   });
 
   it('says so when the team list cannot be read', () => {
-    const results = checkOpsAccess(gh(SCOPED, undefined), products);
+    const results = checkOpsAccess(gh(READ_ORG, undefined), true, products);
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ name: 'ops access', ok: false, detail: 'could not list your GitHub teams' });
+  });
+
+  it('never puts a token value in its output', () => {
+    const results = checkOpsAccess(gh('X-Oauth-Scopes: repo\n', TEAMS), false, products);
+    expect(JSON.stringify(results)).not.toMatch(/gh[pousr]_/);
   });
 });
