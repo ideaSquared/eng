@@ -161,6 +161,8 @@ describe('ship and idea passthrough', () => {
     ['ship', staging, run('ship')],
     ['ship help', staging, run('ship', 'help')],
     ['ship freeze ads staging --reason incident', staging, run('ship', 'freeze', 'ads', 'staging', '--reason', 'incident')],
+    ['ship freeze ads --reason incident staging', staging, run('ship', 'freeze', 'ads', '--reason', 'incident', 'staging')],
+    ['ship log ads staging -n 5', staging, run('ship', 'log', 'ads', 'staging', '-n', '5')],
     ['idea logs ads', staging, run('idea', 'logs', 'ads')],
   ])('still runs %s as typed', (line, state, expected) => {
     expect(route(line, state)).toEqual(expected);
@@ -175,6 +177,10 @@ describe('ship and idea passthrough', () => {
     ['ship logs ads', staging],
     ['ship diff ads', production],
     ['ship doctor', production],
+    ['ship freeze ads --reason staging', staging],
+    ['ship freeze ads --reason', staging],
+    ['ship rollback ads --to staging', staging],
+    ['ship logs ads --component production', production],
   ])('refuses %s, which names no environment, so it cannot reach the other one', (line, state) => {
     const outcome = route(line, state);
     expect(outcome.kind).toBe('message');

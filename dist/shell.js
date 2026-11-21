@@ -66,15 +66,29 @@ const showEnv = (rest, state) => message(rest.length === 0 ? `environment: ${sta
 // ship lines that never act on an environment. Every other ship line with no environment word acts on all of them
 // (freeze, unfreeze) or on whichever one ship picks, which can be production.
 const SHIP_WITHOUT_ENV = ['status', 'help', '--help', '-h'];
+// ship's options that take a value. Their value is not a target: `--reason staging` names no environment.
+const SHIP_VALUE_OPTIONS = ['--repo', '--to', '--reason', '--component', '-n'];
+// The words ship reads as its command, product and environment: options and option values left out.
+const shipPositionals = (args) => args.reduce(({ words, skip }, arg) => {
+    if (skip)
+        return { words, skip: false };
+    if (SHIP_VALUE_OPTIONS.includes(arg))
+        return { words, skip: true };
+    if (arg.startsWith('-'))
+        return { words, skip: false };
+    return { words: [...words, arg], skip: false };
+}, { words: [], skip: false }).words;
 // ship and idea lines run as typed, unless they name the other environment, or are a ship line that names none.
 const passthrough = (command, rest, state) => {
-    const named = namedEnvironments(rest);
-    const other = named.find((env) => env !== state.env);
+    const other = namedEnvironments(rest).find((env) => env !== state.env);
     if (other)
         return message(mismatchMessage(state.env, other));
-    const [first] = rest;
-    if (command === 'ship' && named.length === 0 && first !== undefined && !SHIP_WITHOUT_ENV.includes(first)) {
-        return message(`Refused: name the environment. This session is ${state.env}: add ${state.env} to the line (ship ${rest.join(' ')} ${state.env}).`);
+    if (command === 'ship') {
+        const [first] = rest;
+        const targets = namedEnvironments(shipPositionals(rest));
+        if (first !== undefined && !SHIP_WITHOUT_ENV.includes(first) && targets.length === 0) {
+            return message(`Refused: name the environment. This session is ${state.env}: put ${state.env} after the product, as in ship deploy <product> ${state.env}.`);
+        }
     }
     return run(command, rest);
 };
