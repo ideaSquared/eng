@@ -53,6 +53,24 @@ if ! has gh; then
   fi
 fi
 
+# >>> stale-shims
+# pnpm 11 keeps global bins in PNPM_HOME/bin. Shims that pnpm 10 left at the top of PNPM_HOME come earlier on PATH
+# and keep running the old ship, idea and eng. Remove only those three names, and only files that are pnpm shims.
+is_pnpm_shim() {
+  [ -f "$1" ] && [ ! -L "$1" ] && [ "$(wc -c <"$1")" -lt 8192 ] \
+    && grep -qE 'basedir|%~dp0|PSScriptRoot' "$1" && grep -qE '[/\\]global[/\\]' "$1" && grep -q node_modules "$1"
+}
+remove_stale_shims() {
+  local home="${1%/}" bin="${2%/}" name ext
+  if [ -z "$home" ] || [ -z "$bin" ] || [ "$home" = "$bin" ]; then return 0; fi
+  for name in ship idea eng; do
+    for ext in "" .cmd .ps1; do
+      if is_pnpm_shim "$home/$name$ext"; then rm -f "$home/$name$ext"; fi
+    done
+  done
+}
+# <<< stale-shims
+
 pnpm_ok() { has pnpm && [ "$(pnpm --version | cut -d. -f1)" -ge 10 ]; }
 if ! pnpm_ok; then
   say "Installing pnpm 10"
@@ -63,9 +81,13 @@ fi
 export PNPM_HOME="${PNPM_HOME:-$([ "$(uname)" = Darwin ] && echo "$HOME/Library/pnpm" || echo "$HOME/.local/share/pnpm")}"
 export PATH="$PNPM_HOME:$PATH"
 pnpm setup >/dev/null 2>&1 || true
+# The global bin comes first on PATH: it is PNPM_HOME/bin with pnpm 11, PNPM_HOME itself before.
+global_bin="$(pnpm bin -g 2>/dev/null || true)"
+if [ -n "$global_bin" ]; then export PATH="$global_bin:$PATH"; fi
 
 say "Installing eng"
 pnpm add -g github:ideaSquared/eng
+remove_stale_shims "$PNPM_HOME" "$global_bin"
 
 # The script itself arrives on stdin, so give setup the terminal for the GitHub sign-in.
 eng setup </dev/tty

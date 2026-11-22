@@ -31,6 +31,15 @@ describe('versions', () => {
   });
 });
 
+describe('the ship and idea checks', () => {
+  it('run --version so doctor shows the version', () => {
+    const ship = TOOLS.find((tool) => tool.name === 'ship');
+    expect(ship && checkTool(ship, answers({ ship: 'ship 1.4.0' }))).toMatchObject({ ok: true, detail: '1.4.0' });
+    expect(ship?.args).toEqual(['--version']);
+    expect(TOOLS.find((tool) => tool.name === 'idea')?.args).toEqual(['--version']);
+  });
+});
+
 describe('checkTool', () => {
   it('requires Node 24 on this machine', () => {
     const required = TOOLS.find((tool) => tool.name === 'Node');

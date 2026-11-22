@@ -229,7 +229,8 @@ describe('tab completion', () => {
   });
 
   it('completes product names after deploy, redeploy and rollback', () => {
-    expect(complete('deploy ga')).toEqual([['gaminginit ', 'gaminginit-bot '], 'ga']);
+    expect(complete('deploy ideasquared-')).toEqual([['ideasquared-bot ', 'ideasquared-website '], 'ideasquared-']);
+    expect(complete('deploy ga')[0]).toEqual([]);
     expect(complete('rollback ag')[0]).toEqual(['agent-idea ']);
     expect(complete('redeploy c')[0]).toEqual(['creatrgrid ']);
   });

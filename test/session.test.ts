@@ -94,10 +94,10 @@ describe.each(['staging', 'production'] as const)('the %s menu', (env) => {
   });
 
   it('redeploys to the session environment', () => {
-    expect(action(menu, 'Redeploy', 'gaminginit')).toEqual({
+    expect(action(menu, 'Redeploy', 'ideasquared-website')).toEqual({
       kind: 'run',
       command: 'ship',
-      args: ['deploy', 'gaminginit', env, '--redeploy'],
+      args: ['deploy', 'ideasquared-website', env, '--redeploy'],
     });
   });
 

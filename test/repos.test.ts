@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planRepo } from '../src/repos.ts';
+import { planRepo, REPOS } from '../src/repos.ts';
 
 describe('planRepo', () => {
   it('clones a missing repo', () => {
@@ -34,5 +34,12 @@ describe('planRepo', () => {
       action: 'skip',
       reason: 'on a detached HEAD, not main',
     });
+  });
+});
+
+describe('the repo list', () => {
+  it('has the repos developers work in, and none that were retired', () => {
+    expect(REPOS).toContain('ideasquared-website');
+    expect(REPOS.filter((name) => name.startsWith('gaminginit'))).toEqual([]);
   });
 });

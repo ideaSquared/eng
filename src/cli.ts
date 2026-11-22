@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from './app.tsx';
@@ -15,6 +15,7 @@ import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment, type Environment } from './session.ts';
 import { colour, OPS_PRODUCTS, plain, runOps, type OpsCredential } from './ops.ts';
+import { checkGlobalCli, foldersWith, isRunnable } from './shims.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
 import { readVersion } from './version.ts';
@@ -131,12 +132,56 @@ const installDeps = (dir: string, name: string): boolean => {
   return ok;
 };
 
+const windows = process.platform === 'win32';
+
+// ship, idea and eng as PATH resolves them: every PATH folder holding one, whether the first is pnpm's global bin,
+// and whether it runs. pnpm 11 moved that bin, so shims left by pnpm 10 can shadow a fresh install.
+const globalBin = (): string | undefined => run('pnpm', ['bin', '-g']);
+
+const runnable = (file: string): boolean => {
+  try {
+    const info = statSync(file);
+    return isRunnable({ isFile: info.isFile(), mode: info.mode }, windows);
+  } catch {
+    return false;
+  }
+};
+
+const globalCliResults = (): Result[] => {
+  const dirs = (process.env.PATH ?? '').split(delimiter);
+  const binDir = globalBin();
+  return Object.values(GLOBAL_CLIS).map((name) =>
+    checkGlobalCli({
+      name,
+      folders: foldersWith(name, dirs, runnable, windows, process.cwd()),
+      binDir,
+      windows,
+      version: run(name, ['--version']),
+    }),
+  );
+};
+
+// The problems with the installed CLIs, printed; true when there are none. Callers record an install only then.
+const globalsVerified = (): boolean => {
+  const problems = globalCliResults().filter((result) => !result.ok);
+  problems.forEach((result) => console.log(`! ${result.name}: ${result.detail}${result.fix ? `\n    ${result.fix}` : ''}`));
+  return problems.length === 0;
+};
+
+// The eng that pnpm just installed, by full path, so a stale shim earlier on PATH cannot run instead.
+const installedEng = (): string => {
+  const dir = globalBin();
+  return dir ? join(dir, windows ? 'eng.cmd' : 'eng') : 'eng';
+};
+
 const installGlobals = async (): Promise<boolean> => {
   const latest = await latestCommits();
   console.log('\n→ Installing ship, idea and eng');
   const ok = live('pnpm', ['add', '-g', ...GLOBAL_PACKAGES]);
-  if (ok) recordInstalled(latest);
-  return ok;
+  if (!ok) return false;
+  if (!globalsVerified()) return false;
+  recordInstalled(latest);
+  return true;
 };
 
 // Brings eng, ship and idea up to date before eng does anything else. True when eng itself changed.
@@ -148,6 +193,10 @@ const selfUpdate = async (): Promise<boolean> => {
   const result = spawn('pnpm', ['add', '-g', ...GLOBAL_PACKAGES], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   if (result.status !== 0) {
     console.log(paint(PALETTE.warning, '! The update failed. Run eng update to see why.'));
+    return false;
+  }
+  if (!globalsVerified()) {
+    console.log(paint(PALETTE.warning, '! Installed, but the commands PATH finds are not the new ones. Fix that, then run eng update.'));
     return false;
   }
   recordInstalled(latest);
@@ -164,7 +213,9 @@ const doctor = (dir: string): number => {
   const login = checkGitHubLogin(run);
   const token = login.ok ? opsToken() : undefined;
   const opsResults = token === undefined ? [] : checkOpsAccess((_command, args) => opsGh(token, args), opsTokenFromEnv(), OPS_PRODUCTS);
-  const { lines, ok } = formatResults([...TOOLS.map((t) => checkTool(t, run)), login, ...opsResults, ...repoResults]);
+  const globals = globalCliResults();
+  const tools = TOOLS.map((t) => globals.find((g) => g.name === t.command) ?? checkTool(t, run));
+  const { lines, ok } = formatResults([...tools, ...globals.filter((g) => !TOOLS.some((t) => t.command === g.name)), login, ...opsResults, ...repoResults]);
   console.log(lines.join('\n'));
   console.log(ok ? '\nAll required tools are ready.' : '\nSome required tools are missing. Follow the fixes above.');
   return ok ? 0 : 1;
@@ -459,7 +510,7 @@ const main = async (): Promise<number> => {
   // Update first: updating eng touches no product. When eng itself updated, the new version runs what was asked
   // (flags included) without checking again, so the production warning below is shown once, by that version.
   if (!values.help && shouldCheck(command, process.env, interactive) && (await selfUpdate())) {
-    return spawn('eng', process.argv.slice(2), { stdio: 'inherit', env: { ...process.env, ENG_NO_UPDATE: '1' } }).status ?? 1;
+    return spawn(installedEng(), process.argv.slice(2), { stdio: 'inherit', env: { ...process.env, ENG_NO_UPDATE: '1' } }).status ?? 1;
   }
   // The warning comes before anything that can reach a product. Anything but production exits quietly.
   if (!values.help && env === 'production' && !(await confirmProduction())) return 0;

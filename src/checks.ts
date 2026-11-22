@@ -51,8 +51,8 @@ export const TOOLS: readonly Tool[] = [
     required: true,
     fix: 'Install gh from https://cli.github.com',
   },
-  { name: 'ship', command: 'ship', args: ['--help'], showVersion: false, required: true, fix: 'Run: eng update' },
-  { name: 'idea', command: 'idea', args: ['--help'], showVersion: false, required: true, fix: 'Run: eng update' },
+  { name: 'ship', command: 'ship', args: ['--version'], showVersion: true, required: true, fix: 'Run: eng update' },
+  { name: 'idea', command: 'idea', args: ['--version'], showVersion: true, required: true, fix: 'Run: eng update' },
   {
     name: 'Docker',
     command: 'docker',
