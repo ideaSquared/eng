@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -15,7 +15,7 @@ import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment, type Environment } from './session.ts';
 import { colour, OPS_PRODUCTS, plain, runOps, type OpsCredential } from './ops.ts';
-import { checkGlobalCli, foldersWith } from './shims.ts';
+import { checkGlobalCli, foldersWith, isRunnable } from './shims.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
 import { readVersion } from './version.ts';
@@ -138,15 +138,23 @@ const windows = process.platform === 'win32';
 // and whether it runs. pnpm 11 moved that bin, so shims left by pnpm 10 can shadow a fresh install.
 const globalBin = (): string | undefined => run('pnpm', ['bin', '-g']);
 
+const runnable = (file: string): boolean => {
+  try {
+    const info = statSync(file);
+    return isRunnable({ isFile: info.isFile(), mode: info.mode }, windows);
+  } catch {
+    return false;
+  }
+};
+
 const globalCliResults = (): Result[] => {
   const dirs = (process.env.PATH ?? '').split(delimiter);
   const binDir = globalBin();
   return Object.values(GLOBAL_CLIS).map((name) =>
     checkGlobalCli({
       name,
-      folders: foldersWith(name, dirs, existsSync, windows),
+      folders: foldersWith(name, dirs, runnable, windows, process.cwd()),
       binDir,
-      pnpmHome: process.env.PNPM_HOME,
       windows,
       version: run(name, ['--version']),
     }),

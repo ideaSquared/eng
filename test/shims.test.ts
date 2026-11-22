@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkGlobalCli, foldersWith, sameFolder, shimNames } from '../src/shims.ts';
+import { checkGlobalCli, foldersWith, isRunnable, sameFolder, shimNames } from '../src/shims.ts';
 
 const bin = '/home/me/.local/share/pnpm/bin';
 const home = '/home/me/.local/share/pnpm';
@@ -43,13 +43,35 @@ describe('foldersWith', () => {
     expect(foldersWith('ship', [winHome, winBin], exists([`${winHome}\\ship.ps1`, `${winBin}\\ship.cmd`]), true)).toEqual([winHome, winBin]);
   });
 
+  it('reads an empty PATH entry as the current folder on Linux and macOS', () => {
+    const found = foldersWith('ship', ['', bin], exists(['/work/ship', `${bin}/ship`]), false, '/work');
+    expect(found).toEqual(['/work', bin]);
+  });
+
+  it('ignores an empty PATH entry on Windows', () => {
+    expect(foldersWith('ship', ['', winBin], exists([`${winBin}\\ship.cmd`]), true, 'C:\\work')).toEqual([winBin]);
+  });
+
   it('is empty when no folder holds the tool', () => {
     expect(foldersWith('ship', [bin], exists([]), false)).toEqual([]);
   });
 });
 
+describe('isRunnable', () => {
+  it('needs a regular file with an execute bit on Linux and macOS', () => {
+    expect(isRunnable({ isFile: true, mode: 0o755 }, false)).toBe(true);
+    expect(isRunnable({ isFile: true, mode: 0o644 }, false)).toBe(false);
+    expect(isRunnable({ isFile: false, mode: 0o755 }, false)).toBe(false);
+  });
+
+  it('needs only a file on Windows, which has no execute bit', () => {
+    expect(isRunnable({ isFile: true, mode: 0o644 }, true)).toBe(true);
+    expect(isRunnable({ isFile: false, mode: 0o644 }, true)).toBe(false);
+  });
+});
+
 describe('checkGlobalCli', () => {
-  const base = { name: 'ship', binDir: bin, pnpmHome: home, windows: false };
+  const base = { name: 'ship', binDir: bin, windows: false };
 
   it('passes when one folder, the global bin, holds a tool that runs', () => {
     expect(checkGlobalCli({ ...base, folders: [bin], version: 'ship 1.4.0' })).toEqual({
@@ -72,6 +94,13 @@ describe('checkGlobalCli', () => {
     expect(result.fix).toContain('pnpm setup');
     expect(result.fix).toContain('11.15.1');
     expect(result.fix).toContain(`delete the old ship shims in ${home}`);
+  });
+
+  it('advises deleting the stale folder, not PNPM_HOME, when they differ', () => {
+    const stale = '/opt/old-bin';
+    const result = checkGlobalCli({ ...base, folders: [stale, bin], version: '1.0.0' });
+    expect(result.fix).toContain(`delete the old ship shims in ${stale}`);
+    expect(result.fix).not.toContain(home);
   });
 
   it('fails when the first match is not in the global bin', () => {
@@ -98,7 +127,7 @@ describe('checkGlobalCli', () => {
   });
 
   it('names Windows folders the same way', () => {
-    const result = checkGlobalCli({ name: 'idea', binDir: winBin, pnpmHome: winHome, windows: true, folders: [winHome, winBin], version: '1.0.0' });
+    const result = checkGlobalCli({ name: 'idea', binDir: winBin, windows: true, folders: [winHome, winBin], version: '1.0.0' });
     expect(result.ok).toBe(false);
     expect(result.fix).toContain(`delete the old idea shims in ${winHome}`);
   });

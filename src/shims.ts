@@ -11,9 +11,15 @@ const normal = (dir: string, windows: boolean): string => (windows ? trim(dir).r
 
 export const sameFolder = (a: string, b: string, windows: boolean): boolean => normal(a, windows) === normal(b, windows);
 
-// Every PATH folder holding the tool, in PATH order, each once.
-export const foldersWith = (name: string, dirs: readonly string[], exists: (file: string) => boolean, windows: boolean): string[] => {
+// Whether a directory entry is something the shell would run: on Linux and macOS a regular file with an execute bit
+// (a directory or a non-executable file is skipped by lookup), on Windows any file (it has no execute bit).
+export const isRunnable = (info: { isFile: boolean; mode: number }, windows: boolean): boolean => info.isFile && (windows || (info.mode & 0o111) !== 0);
+
+// Every PATH folder holding the tool, in PATH order, each once. On Linux and macOS an empty PATH entry means the
+// current folder (`cwd`).
+export const foldersWith = (name: string, pathEntries: readonly string[], exists: (file: string) => boolean, windows: boolean, cwd?: string): string[] => {
   const sep = windows ? '\\' : '/';
+  const dirs = pathEntries.map((entry) => (entry === '' && !windows && cwd !== undefined ? cwd : entry));
   return dirs
     .filter((dir, i) => dir !== '' && dirs.findIndex((other) => sameFolder(other, dir, windows)) === i)
     .filter((dir) => shimNames(name, windows).some((file) => exists(`${trim(dir)}${sep}${file}`)))
@@ -27,18 +33,17 @@ export type GlobalCli = {
   name: string;
   folders: readonly string[];
   binDir: string | undefined;
-  pnpmHome: string | undefined;
   windows: boolean;
   version: string | undefined;
 };
 
-export const checkGlobalCli = ({ name, folders, binDir, pnpmHome, windows, version }: GlobalCli): Result => {
+export const checkGlobalCli = ({ name, folders, binDir, windows, version }: GlobalCli): Result => {
   const base = { name, required: true };
   const [first] = folders;
   if (first === undefined) return { ...base, ok: false, detail: 'not found', fix: 'Run: eng update' };
   if (folders.length > 1) {
     const stale = binDir ? (folders.find((dir) => !sameFolder(dir, binDir, windows)) ?? first) : first;
-    return { ...base, ok: false, detail: `found in ${folders.length} folders on PATH: ${folders.join(', ')}`, fix: fixFor(name, pnpmHome ?? stale) };
+    return { ...base, ok: false, detail: `found in ${folders.length} folders on PATH: ${folders.join(', ')}`, fix: fixFor(name, stale) };
   }
   if (binDir !== undefined && !sameFolder(first, binDir, windows)) {
     return { ...base, ok: false, detail: `runs from ${first}, not ${binDir}`, fix: fixFor(name, first) };

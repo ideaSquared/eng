@@ -6,23 +6,28 @@ export const shimNames = (name, windows) => (windows ? [name, `${name}.cmd`, `${
 const trim = (dir) => dir.replace(/[\\/]+$/, '');
 const normal = (dir, windows) => (windows ? trim(dir).replaceAll('\\', '/').toLowerCase() : trim(dir));
 export const sameFolder = (a, b, windows) => normal(a, windows) === normal(b, windows);
-// Every PATH folder holding the tool, in PATH order, each once.
-export const foldersWith = (name, dirs, exists, windows) => {
+// Whether a directory entry is something the shell would run: on Linux and macOS a regular file with an execute bit
+// (a directory or a non-executable file is skipped by lookup), on Windows any file (it has no execute bit).
+export const isRunnable = (info, windows) => info.isFile && (windows || (info.mode & 0o111) !== 0);
+// Every PATH folder holding the tool, in PATH order, each once. On Linux and macOS an empty PATH entry means the
+// current folder (`cwd`).
+export const foldersWith = (name, pathEntries, exists, windows, cwd) => {
     const sep = windows ? '\\' : '/';
+    const dirs = pathEntries.map((entry) => (entry === '' && !windows && cwd !== undefined ? cwd : entry));
     return dirs
         .filter((dir, i) => dir !== '' && dirs.findIndex((other) => sameFolder(other, dir, windows)) === i)
         .filter((dir) => shimNames(name, windows).some((file) => exists(`${trim(dir)}${sep}${file}`)))
         .map(trim);
 };
 const fixFor = (name, folder) => `Run: pnpm setup (pnpm 11.15.1 or later), or delete the old ${name} shims in ${folder}, then run: eng update`;
-export const checkGlobalCli = ({ name, folders, binDir, pnpmHome, windows, version }) => {
+export const checkGlobalCli = ({ name, folders, binDir, windows, version }) => {
     const base = { name, required: true };
     const [first] = folders;
     if (first === undefined)
         return { ...base, ok: false, detail: 'not found', fix: 'Run: eng update' };
     if (folders.length > 1) {
         const stale = binDir ? (folders.find((dir) => !sameFolder(dir, binDir, windows)) ?? first) : first;
-        return { ...base, ok: false, detail: `found in ${folders.length} folders on PATH: ${folders.join(', ')}`, fix: fixFor(name, pnpmHome ?? stale) };
+        return { ...base, ok: false, detail: `found in ${folders.length} folders on PATH: ${folders.join(', ')}`, fix: fixFor(name, stale) };
     }
     if (binDir !== undefined && !sameFolder(first, binDir, windows)) {
         return { ...base, ok: false, detail: `runs from ${first}, not ${binDir}`, fix: fixFor(name, first) };

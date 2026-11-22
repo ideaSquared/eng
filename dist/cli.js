@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // eng: set up and update an ideaSquared developer machine. See the README for the commands.
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -14,7 +14,7 @@ import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
 import { banner, complete, prompt, route } from "./shell.js";
 import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnvironment } from "./session.js";
 import { colour, OPS_PRODUCTS, plain, runOps } from "./ops.js";
-import { checkGlobalCli, foldersWith } from "./shims.js";
+import { checkGlobalCli, foldersWith, isRunnable } from "./shims.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
 import { readVersion } from "./version.js";
@@ -119,14 +119,22 @@ const windows = process.platform === 'win32';
 // ship, idea and eng as PATH resolves them: every PATH folder holding one, whether the first is pnpm's global bin,
 // and whether it runs. pnpm 11 moved that bin, so shims left by pnpm 10 can shadow a fresh install.
 const globalBin = () => run('pnpm', ['bin', '-g']);
+const runnable = (file) => {
+    try {
+        const info = statSync(file);
+        return isRunnable({ isFile: info.isFile(), mode: info.mode }, windows);
+    }
+    catch {
+        return false;
+    }
+};
 const globalCliResults = () => {
     const dirs = (process.env.PATH ?? '').split(delimiter);
     const binDir = globalBin();
     return Object.values(GLOBAL_CLIS).map((name) => checkGlobalCli({
         name,
-        folders: foldersWith(name, dirs, existsSync, windows),
+        folders: foldersWith(name, dirs, runnable, windows, process.cwd()),
         binDir,
-        pnpmHome: process.env.PNPM_HOME,
         windows,
         version: run(name, ['--version']),
     }));
