@@ -12,10 +12,11 @@ repos happen to do today; each file ends with the sources it relies on.
 | [vps-app.md](vps-app.md)               | Docker Compose stacks deployed to a VPS behind a reverse proxy    |
 | [cli-tool.md](cli-tool.md)             | Node CLIs installed from GitHub with a committed `dist/`          |
 | [static-site.md](static-site.md)       | static HTML sites served by Cloudflare Workers static assets      |
+| [frontend.md](frontend.md)             | any repo with a customer-facing browser UI: accessibility, design systems, UX |
 
 ## Rule format
 
-Every rule has an ID (`COMMON-05`, `CF-12`, `VPS-03`, `CLI-02`, `SITE-04`), a level, one sentence, and a `Check:`.
+Every rule has an ID (`COMMON-05`, `CF-12`, `VPS-03`, `CLI-02`, `SITE-04`, `UI-02`), a level, one sentence, and a `Check:`.
 
 - **MUST**: a repo that breaks it has a gap; the sweep opens a PR to fix it.
 - **SHOULD**: the default; a repo may depart from it with a reason written in its `CLAUDE.md` under
@@ -37,19 +38,20 @@ the fix is a PR to this table.
 | `vps-app`        | a `docker-compose*.yml` used for staging or production, plus a `Dockerfile*`                      |
 | `cli-tool`       | a `bin` entry in a `package.json` whose target is under a committed `dist/`                       |
 | `static-site`    | HTML served as-is by an assets-only Worker (`wrangler.jsonc` with `assets` and no `main`)          |
+| `frontend`       | a public-facing app or site with HTML pages (a React/Vite app, or a `static-site`)                 |
 
 ## Repos
 
 | Repo                  | Type(s)                       | Notes                                                                       |
 | --------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| `creatrgrid`          | cloudflare-app                | Hono API Worker + D1/Drizzle, three React/Vite frontends on static assets   |
-| `pairflix`            | cloudflare-app                | same stack as creatrgrid; frontends still on Cloudflare Pages (a gap)       |
+| `creatrgrid`          | cloudflare-app, frontend      | Hono API Worker + D1/Drizzle, three React/Vite frontends on static assets   |
+| `pairflix`            | cloudflare-app, frontend      | same stack as creatrgrid; frontends still on Cloudflare Pages (a gap)       |
 | `agent-idea`          | cloudflare-app, cli-tool      | internal tool: one Worker plus the `idea` CLI and the `@ideasquared/log` package           |
 | `ideasquared-bot`     | cloudflare-app                | internal tool: one Worker with a Durable Object                                            |
-| `adopt-dont-shop`     | vps-app                       | React apps, Fastify gateway, gRPC services, Postgres, nginx, Docker Compose |
+| `adopt-dont-shop`     | vps-app, frontend             | React apps, Fastify gateway, gRPC services, Postgres, nginx, Docker Compose |
 | `eng`                 | cli-tool                      | also ships `install.sh` / `install.ps1`                                     |
 | `shipper`             | cli-tool                      | also ships the reusable deploy workflow every deployable repo calls         |
-| `ideasquared-website` | static-site                   | static HTML on Workers static assets (still on Netlify today: a gap)        |
+| `ideasquared-website` | static-site, frontend         | static HTML on Workers static assets (still on Netlify today: a gap)        |
 
 "Internal tool" means used only by the ideaSquared team, not by customers or the public; rules that differ for
 internal tools (CF-06, CF-07) say so. Every other repo is public-facing.
