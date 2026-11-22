@@ -22,14 +22,9 @@ export const GLOBAL_CLIS: Readonly<Record<string, string>> = {
 export const GLOBAL_REPOS: readonly string[] = Object.keys(GLOBAL_CLIS);
 export const GLOBAL_PACKAGES: readonly string[] = GLOBAL_REPOS.map((repo) => `github:${repo}`);
 
-export type RepoState =
-  | { name: string; cloned: false }
-  | { name: string; cloned: true; branch?: string; defaultBranch?: string; dirty: boolean };
+export type RepoState = { name: string; cloned: false } | { name: string; cloned: true; branch?: string; defaultBranch?: string; dirty: boolean };
 
-export type RepoAction =
-  | { name: string; action: 'clone' }
-  | { name: string; action: 'pull' }
-  | { name: string; action: 'skip'; reason: string };
+export type RepoAction = { name: string; action: 'clone' } | { name: string; action: 'pull' } | { name: string; action: 'skip'; reason: string };
 
 // Only a clean checkout of the default branch is pulled, so update never touches work in progress.
 export const planRepo = (state: RepoState): RepoAction => {

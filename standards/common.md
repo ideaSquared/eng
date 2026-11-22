@@ -7,7 +7,10 @@ Renovate); pnpm workspaces; deploys through `ideaSquared/shipper` (`ship.yaml` +
 through `@ideasquared/log` with the shared logging skill (canonical copy `agent-idea/.claude/skills/logging/SKILL.md`);
 Conventional Commits; TypeScript strict; GitHub for work tracking (pull requests by default); Cloudflare frontends on
 Workers static assets; static sites also move from Netlify to Workers static assets, deployed through shipper; a staging environment is required for anything public-facing, optional for internal tools
-(used only by the ideaSquared team).
+(used only by the ideaSquared team); cli-tool repos accept Node.js 24 or newer (`>=24`), deployed apps pin 24 only;
+products are proprietary (`UNLICENSED`, all rights reserved) unless the repo says otherwise; code-owner review is
+recommended, not required, while the org has one maintainer; a scheduled GitHub Actions workflow that checks
+production health URLs and alerts Discord counts as the external uptime monitor.
 
 Rules about `package.json`, pnpm or TypeScript apply only when the repo has a `package.json` or `.ts` files.
 
@@ -17,8 +20,9 @@ Rules about `package.json`, pnpm or TypeScript apply only when the repo has a `p
 Check: `grep -Eq '^v?24(\.[0-9]+){0,2}$' .nvmrc`
 
 **COMMON-02** · MUST · Root `package.json` `engines.node` has a minimum of major 24 and excludes the next major
-(e.g. `>=24.0.0 <25.0.0`). [S1]
-Check: `jq -r .engines.node package.json` matches `^>=24(\.\d+){0,2} <25`
+(e.g. `>=24.0.0 <25.0.0`). A cli-tool repo runs on developers' own machines and instead uses `>=24` with no upper
+bound, so a newer Node does not stop it installing. [S1]
+Check: `jq -r .engines.node package.json` matches `^>=24(\.\d+){0,2} <25`; cli-tool repos match `^>=24(\.\d+){0,2}$`.
 
 **COMMON-03** · MUST · Every `actions/setup-node` step reads the version from the repo (`node-version-file: .nvmrc`),
 never a hard-coded `node-version`.
@@ -150,10 +154,11 @@ Check: `grep -E '^\* @ideaSquared/' .github/CODEOWNERS`
 Check: `grep -ciE '^#+ *(summary|test plan|linked issue)' .github/pull_request_template.md` is 3.
 
 **COMMON-30** · MUST · The default branch is protected by a ruleset with: Restrict deletions, Block force pushes,
-Require a pull request before merging (with Require review from Code Owners), and Require status checks to pass
-(COMMON-18). [S14][S12]
+Require a pull request before merging, and Require status checks to pass (COMMON-18). Require review from Code
+Owners is a SHOULD while the org has one maintainer, because GitHub does not let an author approve their own pull
+request; turn it on when a second maintainer joins. [S14][S12]
 Check: `gh api repos/{o}/{r}/rules/branches/{default} --jq '[.[].type]'` contains `deletion`, `non_fast_forward`,
-`pull_request`, `required_status_checks`, and the `pull_request` rule has `require_code_owner_review: true`.
+`pull_request` and `required_status_checks`; report (do not fail) when `require_code_owner_review` is false.
 
 ## Secrets
 
@@ -205,9 +210,12 @@ vulnerability reporting link or a security mailbox) and what to expect. [S12][S1
 Check: `ls SECURITY.md .github/SECURITY.md`; it contains `security/advisories/new` or a `mailto:`.
 
 **COMMON-40** · MUST · Root `package.json` has `"private": true` (nothing is published to npm unless the repo says
-so), and a public repo has a top-level `LICENSE` naming an OSI licence whose SPDX id matches `package.json`
-`license`; a private repo sets `"license": "UNLICENSED"` or carries a `LICENSE`. [S12][S19]
-Check: `jq '.private, .license' package.json`; `gh api repos/{o}/{r} --jq .visibility`; `test -f LICENSE` for public.
+so), and has a top-level `LICENSE`. Products are proprietary: `package.json` `license` is `"UNLICENSED"` and
+`LICENSE` reads "Copyright (c) <year> ideaSquared. All rights reserved." with nothing granting reuse. A repo that is
+meant to be reused (for example shipper) may instead name an OSI licence whose SPDX id matches `package.json`
+`license`. [S12][S19]
+Check: `jq '.private, .license' package.json`; `test -f LICENSE`; if `license` is `UNLICENSED`, `LICENSE` contains
+`All rights reserved`, otherwise it names the same SPDX licence.
 
 **COMMON-41** · SHOULD · Public repos run the OpenSSF Scorecard action weekly and on pushes to the default branch,
 uploading SARIF to code scanning. [S12]

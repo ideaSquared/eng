@@ -16,6 +16,7 @@ import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnviro
 import { colour, OPS_PRODUCTS, plain, runOps } from "./ops.js";
 import { installTheme } from "./skin.js";
 import { paint, PALETTE } from "./theme.js";
+import { readVersion } from "./version.js";
 const HELP = `eng: set up and update an ideaSquared developer machine
 
   eng [--production]           open the eng app: status, deploys, logs and runs from one themed menu
@@ -23,6 +24,7 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date, and your ops access per product
   eng theme                    install the ideaSquared terminal skin and prompt
+  eng --version                print the eng version
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
   eng ops                      list the products whose ops commands eng can run
   eng ops <product> [<group> <name> [args...]] [--env staging|production] [--yes] [--json-output]
@@ -290,7 +292,10 @@ const opsCredential = () => {
 const opsTeams = () => {
     const token = opsToken();
     const listed = token === undefined ? undefined : opsGh(token, ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
-    return listed?.split('\n').map((line) => line.trim().toLowerCase()).filter(Boolean);
+    return listed
+        ?.split('\n')
+        .map((line) => line.trim().toLowerCase())
+        .filter(Boolean);
 };
 // One readline for the whole run: lines are queued, so piped input works and a closed input answers undefined
 // instead of hanging. Prompts go to stderr, so stdout stays the result.
@@ -404,20 +409,25 @@ const main = async () => {
     // ops takes its own options (--env, --yes and each command's fields), which parseArgs here would reject.
     const isOps = process.argv[2] === 'ops';
     const { values, positionals } = isOps
-        ? { values: { dir: undefined, help: false, production: undefined, env: undefined }, positionals: ['ops'] }
+        ? { values: { dir: undefined, help: false, version: false, production: undefined, env: undefined }, positionals: ['ops'] }
         : parseArgs({
             allowPositionals: true,
             options: {
                 dir: { type: 'string' },
                 help: { type: 'boolean', short: 'h' },
+                version: { type: 'boolean' },
                 production: { type: 'boolean' },
                 env: { type: 'string' },
             },
         });
     const [command] = positionals;
+    if (values.version) {
+        console.log(readVersion(readFileSync(new URL('../package.json', import.meta.url), 'utf8')));
+        return 0;
+    }
     const startup = resolveEnvironment(values);
     if (!startup.ok) {
-        console.log(`${startup.error}\n\n${HELP}`);
+        console.error(`${startup.error}\n\n${HELP}`);
         return 1;
     }
     const { env } = startup;
@@ -436,7 +446,7 @@ const main = async () => {
     if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY)
         return launch(env);
     if (values.help || !command) {
-        console.log(HELP);
+        (values.help ? console.log : console.error)(HELP);
         return values.help ? 0 : 1;
     }
     const dir = values.dir ? resolve(values.dir) : reposDir();
@@ -445,7 +455,7 @@ const main = async () => {
     const result = runCommand(command, dir, env, isOps ? process.argv.slice(3) : []);
     if (result !== undefined)
         return result;
-    console.log(`Unknown command: ${command}\n\n${HELP}`);
+    console.error(`Unknown command: ${command}\n\n${HELP}`);
     return 1;
 };
 process.exitCode = await main();

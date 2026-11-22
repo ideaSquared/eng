@@ -3,10 +3,10 @@ export const TOOLS = [
         name: 'Node',
         command: 'node',
         args: ['--version'],
-        min: [22, 18, 0],
+        min: [24, 0, 0],
         showVersion: true,
         required: true,
-        fix: 'Re-run the installer, or install Node 22.18 or later from https://nodejs.org',
+        fix: 'Re-run the installer, or install Node 24 or later from https://nodejs.org',
     },
     {
         name: 'pnpm',
@@ -83,7 +83,11 @@ export const formatResults = (results) => ({
 // does not report scopes), so a caller can tell "no scopes" from "could not tell".
 export const parseScopes = (headers) => {
     const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
-    return line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()).filter(Boolean);
+    return line
+        ?.slice(line.indexOf(':') + 1)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
 };
 export const ORG_NAME = 'ideaSquared';
 // Where to create the eng ops token: a classic token with only read:org, pre-selected.

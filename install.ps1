@@ -1,6 +1,6 @@
 # eng installer for Windows (PowerShell). Run:
 #   irm https://raw.githubusercontent.com/ideaSquared/eng/main/install.ps1 | iex
-# It installs what eng needs (Node 22, pnpm, git, the GitHub CLI) with winget, then the eng CLI, then runs `eng setup`.
+# It installs what eng needs (Node 24, pnpm, git, the GitHub CLI) with winget, then the eng CLI, then runs `eng setup`.
 $ErrorActionPreference = 'Stop'
 
 function Say($text) { Write-Host "`n-> $text" }
@@ -23,7 +23,7 @@ function Test-Pnpm {
 function Test-Node {
   if (-not (Has node)) { return $false }
   $parts = (node --version).TrimStart('v').Split('.')
-  return ([int]$parts[0] -gt 22) -or ([int]$parts[0] -eq 22 -and [int]$parts[1] -ge 18)
+  return [int]$parts[0] -ge 24
 }
 function Install-Winget($id, $name) {
   Say "Installing $name"

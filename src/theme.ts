@@ -90,13 +90,10 @@ const snippet = (shell: Shell, configPath: string): string =>
 
 // The profile with the prompt added once; unchanged when it is already there.
 export const withPrompt = (profile: string, shell: Shell, configPath: string): string =>
-  profile.includes(PROFILE_MARKER)
-    ? profile
-    : `${profile}${profile === '' || profile.endsWith('\n') ? '' : '\n'}\n${snippet(shell, configPath)}`;
+  profile.includes(PROFILE_MARKER) ? profile : `${profile}${profile === '' || profile.endsWith('\n') ? '' : '\n'}\n${snippet(shell, configPath)}`;
 
 // True when the profile already starts Starship some other way, so adding ours would replace that prompt.
-export const hasOtherStarship = (profile: string): boolean =>
-  !profile.includes(PROFILE_MARKER) && /starship init/.test(profile);
+export const hasOtherStarship = (profile: string): boolean => !profile.includes(PROFILE_MARKER) && /starship init/.test(profile);
 
 // Wraps text in a 24-bit colour for plain terminal output outside the app.
 export const paint = (hex: string, text: string): string => {

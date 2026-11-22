@@ -18,7 +18,7 @@ irm https://raw.githubusercontent.com/ideaSquared/eng/main/install.ps1 | iex
 
 The installer:
 
-1. installs Node 22, pnpm, git and the GitHub CLI if they are missing (fnm or Homebrew or apt on macOS and Linux,
+1. installs Node 24, pnpm, git and the GitHub CLI if they are missing (fnm or Homebrew or apt on macOS and Linux,
    winget on Windows);
 2. installs the `eng` CLI;
 3. runs `eng setup`, which:
@@ -37,6 +37,13 @@ Before you start, ask for:
 - membership of the ideaSquared GitHub organisation, with write access to the repos you will work on (`idea` and
   `ship` check it);
 - the Discord server, where each product's `<project>-github` channel shows its deploys and alerts.
+
+To install or reinstall only the CLI (Node 24 and pnpm 10 are needed):
+
+```bash
+pnpm add -g github:ideaSquared/eng          # or github:ideaSquared/eng#vX.Y.Z for a release
+eng --version
+```
 
 ## The eng app
 
@@ -88,6 +95,7 @@ eng [--production]           # open the eng app (staging unless --production; fi
 eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
+eng --version                # print the installed version
 eng theme                    # install the ideaSquared terminal skin and prompt
 eng shell [--production]     # a prompt for short commands: deploy, logs, runs, ops
 eng ops                      # list the products eng can run ops commands for, and their environments
@@ -112,21 +120,21 @@ eng ops find <words...>      # search every product's commands
 `eng shell` (or Shell in the menu) opens a prompt that shows the session's environment, e.g. `◆ staging › `
 (red in production), so you type short commands without the tool prefix:
 
-| You type                          | It runs                                  |
-| --------------------------------- | ---------------------------------------- |
-| `deploy ads staging`              | `ship deploy ads staging`                |
-| `redeploy ads staging`            | `ship deploy ads staging --redeploy`     |
-| `rollback ads [env]`              | `ship rollback ads <env>`                |
-| `status`                          | `ship status`                            |
-| `logs ads`                        | `idea logs ads --env <current env>`      |
-| `runs ads`                        | `idea runs ads --failed`                 |
-| `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
-| `find <words...>`                 | `eng ops find <words...>`                |
-| `doctor`, `update`, `theme`       | the eng command of that name             |
-| `ship <...>`, `idea <...>`        | that tool, exactly as typed (a `ship` line other than `status` must name the session's environment) |
-| `env`                             | show the session's environment (it cannot be switched) |
-| `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
-| `help <words...>`                 | only the help lines containing every word |
+| You type                         | It runs                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `deploy ads staging`             | `ship deploy ads staging`                                                                           |
+| `redeploy ads staging`           | `ship deploy ads staging --redeploy`                                                                |
+| `rollback ads [env]`             | `ship rollback ads <env>`                                                                           |
+| `status`                         | `ship status`                                                                                       |
+| `logs ads`                       | `idea logs ads --env <current env>`                                                                 |
+| `runs ads`                       | `idea runs ads --failed`                                                                            |
+| `ops <...>`                      | `eng ops <...>` (the rest of the line is passed through)                                            |
+| `find <words...>`                | `eng ops find <words...>`                                                                           |
+| `doctor`, `update`, `theme`      | the eng command of that name                                                                        |
+| `ship <...>`, `idea <...>`       | that tool, exactly as typed (a `ship` line other than `status` must name the session's environment) |
+| `env`                            | show the session's environment (it cannot be switched)                                              |
+| `help`, `exit` / `quit` / Ctrl-D | list commands, leave                                                                                |
+| `help <words...>`                | only the help lines containing every word                                                           |
 
 When a deploy, redeploy, rollback or logs line names no environment, the session's is used. If it names a different
 one it is refused with a message, never overridden (`ship ...` and `idea ...` lines too, when they name the other
@@ -216,6 +224,9 @@ creator, user, social account or content id, returning ids only, so `eng ops fin
 
 ```bash
 pnpm install
+pnpm hooks:install  # once: the commit-msg hook that checks Conventional Commits
+pnpm format:check
+pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build        # the CLI, into dist/ (committed, so installing from GitHub needs no build)

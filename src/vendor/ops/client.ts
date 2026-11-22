@@ -1,23 +1,12 @@
 // Vendored from ideaSquared/agent-idea packages/ops/src/client.ts at ops-v0.1.1. Do not edit here: change it there,
 // release it, then copy it again. eng installs globally from GitHub, and pnpm refuses URL or git dependencies there.
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
-import {
-  CatalogSchema,
-  ErrorResponseSchema,
-  InvokeResponseSchema,
-  OpsError,
-} from './contract.ts';
+import { CatalogSchema, ErrorResponseSchema, InvokeResponseSchema, OpsError } from './contract.ts';
 import type { Catalog, InvokeRequest, InvokeResponse } from './contract.ts';
 
 const defaultFetch: Fetch = (input, init) => fetch(input, init);
 
-async function call(
-  baseUrl: string,
-  path: string,
-  token: string,
-  fetcher: Fetch,
-  init: { method: string; body?: string },
-): Promise<unknown> {
+async function call(baseUrl: string, path: string, token: string, fetcher: Fetch, init: { method: string; body?: string }): Promise<unknown> {
   const response = await fetcher(`${baseUrl.replace(/\/+$/, '')}${path}`, {
     method: init.method,
     headers: {
@@ -45,12 +34,7 @@ export async function fetchCatalog(baseUrl: string, token: string, fetcher: Fetc
   return parsed.success ? parsed.data : unreadable();
 }
 
-export async function invoke(
-  baseUrl: string,
-  token: string,
-  request: InvokeRequest,
-  fetcher: Fetch = defaultFetch,
-): Promise<InvokeResponse> {
+export async function invoke(baseUrl: string, token: string, request: InvokeRequest, fetcher: Fetch = defaultFetch): Promise<InvokeResponse> {
   const body = JSON.stringify(request);
   const parsed = InvokeResponseSchema.safeParse(await call(baseUrl, '/invoke', token, fetcher, { method: 'POST', body }));
   return parsed.success ? parsed.data : unreadable();

@@ -33,7 +33,7 @@ export const homeMenu = (env) => ({
         { label: 'Shell', hint: `a prompt for deploy, logs, runs and ops (${env})`, next: run('eng', ['shell']) },
         {
             label: 'Ops',
-            hint: 'run a product\'s ops commands',
+            hint: "run a product's ops commands",
             next: pick('Ops for which product?', deployedProducts(process.env).map((product) => product.name), (p) => run('eng', ['ops', p])),
         },
         { label: 'Doctor', hint: 'check what is missing or out of date', next: run('eng', ['doctor']) },
@@ -54,4 +54,4 @@ export const searchMenu = (index, text) => {
     const words = text.toLowerCase().split(/\s+/).filter(Boolean);
     return index.filter((entry) => words.every((word) => entry.label.toLowerCase().includes(word)));
 };
-export const describeAction = (action) => action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng';
+export const describeAction = (action) => (action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng');

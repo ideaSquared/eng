@@ -159,7 +159,18 @@ describe('confirmation', () => {
 
 describe('output', () => {
   it('prints key: value lines, nested records indented, arrays of records as a table', () => {
-    const lines = formatResult({ accountId: 'acct_1', queued: 3, ok: true, none: null, tags: ['a', 'b'], rows: [{ id: 'x', n: 1 }, { id: 'yy', n: 22 }], meta: { by: 'me' } });
+    const lines = formatResult({
+      accountId: 'acct_1',
+      queued: 3,
+      ok: true,
+      none: null,
+      tags: ['a', 'b'],
+      rows: [
+        { id: 'x', n: 1 },
+        { id: 'yy', n: 22 },
+      ],
+      meta: { by: 'me' },
+    });
     expect(lines).toEqual([
       'accountId: acct_1',
       'queued: 3',
@@ -197,8 +208,12 @@ describe('output', () => {
 describe('error messages', () => {
   const url = 'http://x';
   it('maps each code to one clear line', () => {
-    expect(describeError(new OpsError('forbidden', 'm'), creatrgrid, url)).toBe('You need to be in the creatrgrid team on GitHub: https://github.com/orgs/ideaSquared/teams/creatrgrid');
-    expect(describeError(new OpsError('forbidden', 'm'), ads, url)).toBe('You need to be in the adoptdontshop team on GitHub: https://github.com/orgs/ideaSquared/teams/adoptdontshop');
+    expect(describeError(new OpsError('forbidden', 'm'), creatrgrid, url)).toBe(
+      'You need to be in the creatrgrid team on GitHub: https://github.com/orgs/ideaSquared/teams/creatrgrid',
+    );
+    expect(describeError(new OpsError('forbidden', 'm'), ads, url)).toBe(
+      'You need to be in the adoptdontshop team on GitHub: https://github.com/orgs/ideaSquared/teams/adoptdontshop',
+    );
     expect(describeError(new OpsError('unauthenticated', 'm'), creatrgrid, url)).toContain('gh auth login');
     expect(describeError(new OpsError('not_found', 'm'), creatrgrid, url)).toContain('eng ops creatrgrid');
     expect(describeError(new OpsError('invalid_argument', "field 'x' is required"), creatrgrid, url)).toBe("Invalid arguments: field 'x' is required");
@@ -231,7 +246,17 @@ const CATALOG: Catalog = {
 
 type Harness = { deps: OpsDeps; out: string[]; err: string[]; asked: string[]; calls: Array<{ path: string; auth: string | null; body?: unknown }> };
 
-const harness = (answers: Array<string | undefined>, options: { token?: string | undefined; scopes?: string[] | undefined; teams?: string[] | undefined; env?: Record<string, string>; interactive?: boolean; failWith?: Response } = {}): Harness => {
+const harness = (
+  answers: Array<string | undefined>,
+  options: {
+    token?: string | undefined;
+    scopes?: string[] | undefined;
+    teams?: string[] | undefined;
+    env?: Record<string, string>;
+    interactive?: boolean;
+    failWith?: Response;
+  } = {},
+): Harness => {
   const out: string[] = [];
   const err: string[] = [];
   const asked: string[] = [];
@@ -420,11 +445,27 @@ describe('matching commands', () => {
 });
 
 describe('the run line', () => {
-  const field = (name: string, extra: Partial<Command['fields'][number]> = {}) => ({ name, type: 'string' as const, required: false, description: '', ...extra });
-  const command = (fields: Command['fields']): Command => ({ id: 'creator.lookup', group: 'creator', name: 'lookup', summary: '', kind: 'read', dryRun: false, fields });
+  const field = (name: string, extra: Partial<Command['fields'][number]> = {}) => ({
+    name,
+    type: 'string' as const,
+    required: false,
+    description: '',
+    ...extra,
+  });
+  const command = (fields: Command['fields']): Command => ({
+    id: 'creator.lookup',
+    group: 'creator',
+    name: 'lookup',
+    summary: '',
+    kind: 'read',
+    dryRun: false,
+    fields,
+  });
 
   it('shows positional fields as <name> and nothing else when there are none', () => {
-    expect(runLine('creatrgrid', command([field('q', { positional: true, required: true })]), 'staging')).toBe('eng ops creatrgrid creator lookup <q> --env staging');
+    expect(runLine('creatrgrid', command([field('q', { positional: true, required: true })]), 'staging')).toBe(
+      'eng ops creatrgrid creator lookup <q> --env staging',
+    );
     expect(runLine('creatrgrid', command([]), 'production')).toBe('eng ops creatrgrid creator lookup --env production');
   });
 

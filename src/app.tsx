@@ -128,7 +128,7 @@ export const App = ({ env, onAction, menu = homeMenu(env) }: Props) => {
             <Text color={PALETTE.foreground}>{search}</Text>
             <Text color={PALETTE.accent}>▏</Text>
           </Box>
-          {matches.length === 0 ? <Text color={PALETTE.muted}>  no match</Text> : null}
+          {matches.length === 0 ? <Text color={PALETTE.muted}> no match</Text> : null}
           {matches.map((entry, i) => (
             <Box key={entry.label}>
               <Text color={PALETTE.accent}>{i === searchCursor ? '› ' : '  '}</Text>
@@ -142,9 +142,7 @@ export const App = ({ env, onAction, menu = homeMenu(env) }: Props) => {
       )}
       <Box marginTop={1}>
         <Text color={PALETTE.muted}>
-          {search === undefined
-            ? '↑↓ move · enter or 1-9 select · / search · esc back · q quit'
-            : 'type to filter · ↑↓ move · enter run · esc close search'}
+          {search === undefined ? '↑↓ move · enter or 1-9 select · / search · esc back · q quit' : 'type to filter · ↑↓ move · enter run · esc close search'}
         </Text>
       </Box>
     </Box>

@@ -137,7 +137,10 @@ Check: deploy script waits for `healthy`; services set `stop_grace_period`.
 
 **VPS-28** · MUST · Services log to stdout through `@ideasquared/log` (COMMON-38), the gateway exposes `/health`
 (liveness) and `/health/ready` (readiness, checks its dependencies), and an external uptime check alerts on failure.
-Check: both endpoints return 200 on staging; the uptime monitor is named in the runbooks.
+A scheduled GitHub Actions workflow (at least every 15 minutes) that requests each production health URL, fails when
+one is down and alerts Discord counts as that check.
+Check: both endpoints return 200 on staging; the uptime monitor is named in the runbooks, or a workflow with
+`schedule:` requests the production health URLs and alerts on failure.
 
 **VPS-29** · SHOULD · Metrics (Prometheus) and error tracking (GlitchTip or Sentry) run for production, with alerts
 routed to the product's Discord channel through ideasquared-bot.

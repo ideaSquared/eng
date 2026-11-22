@@ -38,7 +38,15 @@ const installStarship = () => {
         return true;
     console.log('\n→ Installing Starship (the prompt)');
     if (windows && ok('winget', ['--version'])) {
-        const installed = live('winget', ['install', '--id', 'Starship.Starship', '--exact', '--silent', '--accept-source-agreements', '--accept-package-agreements']);
+        const installed = live('winget', [
+            'install',
+            '--id',
+            'Starship.Starship',
+            '--exact',
+            '--silent',
+            '--accept-source-agreements',
+            '--accept-package-agreements',
+        ]);
         if (installed)
             console.log('  Open a new terminal for starship to be on your PATH.');
         return installed;
@@ -53,7 +61,10 @@ const findClink = () => {
     if (ok('clink', ['--version']))
         return 'clink';
     const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'Programs')];
-    return roots.filter((root) => Boolean(root)).map((root) => join(root, 'clink', 'clink.bat')).find((path) => existsSync(path));
+    return roots
+        .filter((root) => Boolean(root))
+        .map((root) => join(root, 'clink', 'clink.bat'))
+        .find((path) => existsSync(path));
 };
 const installCmdPrompt = async () => {
     const localAppData = process.env.LOCALAPPDATA;
@@ -61,7 +72,8 @@ const installCmdPrompt = async () => {
         return;
     if (!findClink()) {
         console.log('\n→ Installing Clink (gives cmd.exe a prompt hook)');
-        if (!ok('winget', ['--version']) || !live('winget', ['install', '--id', 'chrisant996.Clink', '--exact', '--silent', '--accept-source-agreements', '--accept-package-agreements'])) {
+        if (!ok('winget', ['--version']) ||
+            !live('winget', ['install', '--id', 'chrisant996.Clink', '--exact', '--silent', '--accept-source-agreements', '--accept-package-agreements'])) {
             console.log('! Could not install Clink. Install it from https://chrisant996.github.io/clink/, then run eng theme again.');
             return;
         }

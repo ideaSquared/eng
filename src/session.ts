@@ -30,9 +30,7 @@ export const mismatchMessage = (session: Environment, named: Environment): strin
 
 // Colours and badge for each environment, shared by the app and the shell prompt.
 export const envStyle = (env: Environment) =>
-  env === 'production'
-    ? ({ color: PALETTE.danger, badge: 'PRODUCTION' } as const)
-    : ({ color: PALETTE.accent, badge: 'staging' } as const);
+  env === 'production' ? ({ color: PALETTE.danger, badge: 'PRODUCTION' } as const) : ({ color: PALETTE.accent, badge: 'staging' } as const);
 
 const wrap = (text: string, width: number): string[] =>
   text.split(' ').reduce<string[]>((lines, word) => {

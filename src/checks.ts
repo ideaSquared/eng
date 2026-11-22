@@ -21,10 +21,10 @@ export const TOOLS: readonly Tool[] = [
     name: 'Node',
     command: 'node',
     args: ['--version'],
-    min: [22, 18, 0],
+    min: [24, 0, 0],
     showVersion: true,
     required: true,
-    fix: 'Re-run the installer, or install Node 22.18 or later from https://nodejs.org',
+    fix: 'Re-run the installer, or install Node 24 or later from https://nodejs.org',
   },
   {
     name: 'pnpm',
@@ -108,7 +108,11 @@ export const formatResults = (results: readonly Result[]): { lines: string[]; ok
 // does not report scopes), so a caller can tell "no scopes" from "could not tell".
 export const parseScopes = (headers: string | undefined): string[] | undefined => {
   const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
-  return line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()).filter(Boolean);
+  return line
+    ?.slice(line.indexOf(':') + 1)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 };
 
 export const ORG_NAME = 'ideaSquared';

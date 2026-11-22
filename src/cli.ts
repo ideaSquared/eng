@@ -17,6 +17,7 @@ import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnviro
 import { colour, OPS_PRODUCTS, plain, runOps, type OpsCredential } from './ops.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
+import { readVersion } from './version.ts';
 
 const HELP = `eng: set up and update an ideaSquared developer machine
 
@@ -25,6 +26,7 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date, and your ops access per product
   eng theme                    install the ideaSquared terminal skin and prompt
+  eng --version                print the eng version
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
   eng ops                      list the products whose ops commands eng can run
   eng ops <product> [<group> <name> [args...]] [--env staging|production] [--yes] [--json-output]
@@ -55,8 +57,7 @@ const runIn =
 const run = runIn();
 
 // Runs with the terminal attached, for commands that ask questions or show progress.
-const live = (command: string, args: string[], cwd?: string): boolean =>
-  spawn(command, args, { cwd, stdio: 'inherit' }).status === 0;
+const live = (command: string, args: string[], cwd?: string): boolean => spawn(command, args, { cwd, stdio: 'inherit' }).status === 0;
 
 // ~/.config/eng/config.json: the repos folder, and the commit of each global CLI last installed.
 type Config = { dir?: string; installed?: Shas };
@@ -182,7 +183,9 @@ const setup = async (dir: string): Promise<number> => {
   live('gh', ['auth', 'setup-git']);
   // eng ops sends ENG_OPS_TOKEN, never gh's login token (it can do more than read teams). Doctor checks it at the end.
   if (!opsTokenFromEnv()) {
-    console.log(`\n! eng ops needs ENG_OPS_TOKEN: a classic token with only read:org. Create one at ${OPS_TOKEN_URL},\n  set ENG_OPS_TOKEN to it in your shell profile, and open a new terminal. Steps: "Set up eng ops" in the eng README.`);
+    console.log(
+      `\n! eng ops needs ENG_OPS_TOKEN: a classic token with only read:org. Create one at ${OPS_TOKEN_URL},\n  set ENG_OPS_TOKEN to it in your shell profile, and open a new terminal. Steps: "Set up eng ops" in the eng README.`,
+    );
   }
   if (!(await installGlobals())) return 1;
 
@@ -296,7 +299,6 @@ const shell = (env: Environment): Promise<number> =>
     ask();
   });
 
-
 // ENG_OPS_TOKEN (a token with only read:org) when set, else `gh auth token`. Captured and never printed. eng ops
 // refuses a token that can do more than read teams, so gh's own login token (repo scope) only works once narrowed.
 const opsTokenFromEnv = (): boolean => Boolean(process.env.ENG_OPS_TOKEN?.trim());
@@ -316,7 +318,10 @@ const opsCredential = (): OpsCredential | undefined => {
 const opsTeams = (): string[] | undefined => {
   const token = opsToken();
   const listed = token === undefined ? undefined : opsGh(token, ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
-  return listed?.split('\n').map((line) => line.trim().toLowerCase()).filter(Boolean);
+  return listed
+    ?.split('\n')
+    .map((line) => line.trim().toLowerCase())
+    .filter(Boolean);
 };
 
 // One readline for the whole run: lines are queued, so piped input works and a closed input answers undefined
@@ -358,12 +363,7 @@ const ops = async (argv: string[]): Promise<number> => {
   }
 };
 
-const runCommand = (
-  command: string,
-  dir: string,
-  env: Environment,
-  args: string[] = [],
-): Promise<number> | number | undefined => {
+const runCommand = (command: string, dir: string, env: Environment, args: string[] = []): Promise<number> | number | undefined => {
   if (command === 'ops') return ops(args);
   if (command === 'setup') return setup(dir);
   if (command === 'update') return update(dir);
@@ -433,20 +433,25 @@ const main = async (): Promise<number> => {
   // ops takes its own options (--env, --yes and each command's fields), which parseArgs here would reject.
   const isOps = process.argv[2] === 'ops';
   const { values, positionals } = isOps
-    ? { values: { dir: undefined, help: false, production: undefined, env: undefined }, positionals: ['ops'] }
+    ? { values: { dir: undefined, help: false, version: false, production: undefined, env: undefined }, positionals: ['ops'] }
     : parseArgs({
         allowPositionals: true,
         options: {
           dir: { type: 'string' },
           help: { type: 'boolean', short: 'h' },
+          version: { type: 'boolean' },
           production: { type: 'boolean' },
           env: { type: 'string' },
         },
       });
   const [command] = positionals;
+  if (values.version) {
+    console.log(readVersion(readFileSync(new URL('../package.json', import.meta.url), 'utf8')));
+    return 0;
+  }
   const startup = resolveEnvironment(values);
   if (!startup.ok) {
-    console.log(`${startup.error}\n\n${HELP}`);
+    console.error(`${startup.error}\n\n${HELP}`);
     return 1;
   }
   const { env } = startup;
@@ -462,14 +467,14 @@ const main = async (): Promise<number> => {
   if (!isOps) process.env.ENG_ENV = env;
   if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY) return launch(env);
   if (values.help || !command) {
-    console.log(HELP);
+    (values.help ? console.log : console.error)(HELP);
     return values.help ? 0 : 1;
   }
   const dir = values.dir ? resolve(values.dir) : reposDir();
   if (values.dir && command === 'setup') saveConfig({ dir });
   const result = runCommand(command, dir, env, isOps ? process.argv.slice(3) : []);
   if (result !== undefined) return result;
-  console.log(`Unknown command: ${command}\n\n${HELP}`);
+  console.error(`Unknown command: ${command}\n\n${HELP}`);
   return 1;
 };
 
