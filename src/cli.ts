@@ -17,6 +17,7 @@ import { CONFIRM_PROMPT, isProductionConfirmed, productionWarning, resolveEnviro
 import { colour, OPS_PRODUCTS, plain, runOps, type OpsCredential } from './ops.ts';
 import { installTheme } from './skin.ts';
 import { paint, PALETTE } from './theme.ts';
+import { readVersion } from './version.ts';
 
 const HELP = `eng: set up and update an ideaSquared developer machine
 
@@ -25,6 +26,7 @@ const HELP = `eng: set up and update an ideaSquared developer machine
   eng update                   update ship, idea and eng, pull every clean repo on its default branch
   eng doctor                   check what is missing or out of date, and your ops access per product
   eng theme                    install the ideaSquared terminal skin and prompt
+  eng --version                print the eng version
   eng shell [--production]     a prompt for short commands: deploy, logs, runs, ops (type help inside)
   eng ops                      list the products whose ops commands eng can run
   eng ops <product> [<group> <name> [args...]] [--env staging|production] [--yes] [--json-output]
@@ -433,17 +435,22 @@ const main = async (): Promise<number> => {
   // ops takes its own options (--env, --yes and each command's fields), which parseArgs here would reject.
   const isOps = process.argv[2] === 'ops';
   const { values, positionals } = isOps
-    ? { values: { dir: undefined, help: false, production: undefined, env: undefined }, positionals: ['ops'] }
+    ? { values: { dir: undefined, help: false, version: false, production: undefined, env: undefined }, positionals: ['ops'] }
     : parseArgs({
         allowPositionals: true,
         options: {
           dir: { type: 'string' },
           help: { type: 'boolean', short: 'h' },
+          version: { type: 'boolean' },
           production: { type: 'boolean' },
           env: { type: 'string' },
         },
       });
   const [command] = positionals;
+  if (values.version) {
+    console.log(readVersion(readFileSync(new URL('../package.json', import.meta.url), 'utf8')));
+    return 0;
+  }
   const startup = resolveEnvironment(values);
   if (!startup.ok) {
     console.log(`${startup.error}\n\n${HELP}`);
