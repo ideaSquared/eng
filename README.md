@@ -224,6 +224,7 @@ creator, user, social account or content id, returning ids only, so `eng ops fin
 
 ```bash
 pnpm install
+pnpm hooks:install  # once: the commit-msg hook that checks Conventional Commits
 pnpm format:check
 pnpm lint
 pnpm typecheck
