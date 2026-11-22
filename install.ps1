@@ -25,6 +25,24 @@ function Test-Node {
   $parts = (node --version).TrimStart('v').Split('.')
   return [int]$parts[0] -ge 24
 }
+# pnpm 11 keeps global bins in PNPM_HOME\bin. Shims that pnpm 10 left at the top of PNPM_HOME come earlier on PATH and
+# keep running the old ship, idea and eng. Remove only those three names, and only files that are pnpm shims.
+function Test-PnpmShim($path) {
+  $item = Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+  if (-not $item -or $item.PSIsContainer -or $item.LinkType -or $item.Length -ge 8192) { return $false }
+  $text = Get-Content -LiteralPath $path -Raw
+  return ($text -match 'basedir|%~dp0|PSScriptRoot') -and ($text -match '[/\\]global[/\\]') -and ($text -match 'node_modules')
+}
+function Remove-StaleShims($pnpmHome, $binDir) {
+  if (-not $pnpmHome -or -not $binDir) { return }
+  if ($pnpmHome.TrimEnd('\', '/') -ieq $binDir.TrimEnd('\', '/')) { return }
+  foreach ($name in 'ship', 'idea', 'eng') {
+    foreach ($ext in '', '.cmd', '.ps1') {
+      $file = Join-Path $pnpmHome "$name$ext"
+      if (Test-PnpmShim $file) { Remove-Item -LiteralPath $file -Force }
+    }
+  }
+}
 function Install-Winget($id, $name) {
   Say "Installing $name"
   Invoke-Checked winget install --id $id --exact --silent --accept-source-agreements --accept-package-agreements
@@ -43,9 +61,14 @@ pnpm.cmd setup | Out-Null
 $env:PNPM_HOME = [Environment]::GetEnvironmentVariable('PNPM_HOME', 'User')
 Refresh-Path
 if ($env:PNPM_HOME) { $env:Path = "$env:PNPM_HOME;$env:Path" }
+# The global bin comes first on PATH: it is PNPM_HOME\bin with pnpm 11, PNPM_HOME itself before.
+$globalBin = $null
+try { $globalBin = (pnpm.cmd bin -g 2>$null | Select-Object -First 1) } catch { $globalBin = $null }
+if ($globalBin) { $env:Path = "$globalBin;$env:Path" }
 
 Say 'Installing eng'
 Invoke-Checked pnpm.cmd add -g github:ideaSquared/eng
+Remove-StaleShims $env:PNPM_HOME $globalBin
 Invoke-Checked eng.cmd setup
 
 Write-Host "`nDone. Open a new terminal so the PATH changes apply everywhere. Keep up to date with: eng update"
