@@ -210,6 +210,7 @@ creator, user, social account or content id, returning ids only, so `eng ops fin
 
 - Each repo's `CLAUDE.md` and README say how to run it.
 - `ship status` shows what is live in every product; `idea logs <project>` shows its sanitised logs.
+- [`standards/`](standards/README.md) holds the engineering standards every ideaSquared repo follows, one file per repo type.
 
 ## Developing eng
 

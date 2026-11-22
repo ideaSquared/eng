@@ -14,6 +14,7 @@ eng sets up and updates an ideaSquared developer machine: the `install.sh` and `
 - The installers must stay safe to re-run: install only what is missing, never overwrite a user's setup.
 - `eng update` must never touch work in progress: it pulls only a clean checkout of the default branch.
 - Conventional commits (`feat:`, `fix:`, `chore:` ...), one change per PR, tests with behaviour changes.
+- `standards/` holds the engineering standards for every ideaSquared repo (see `standards/README.md`); change a rule by PR here.
 
 ## Logging
 
