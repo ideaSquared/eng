@@ -111,6 +111,11 @@ eng ops find <words...>      # search every product's commands
 - Docker is optional: only adopt-dont-shop needs it, so `eng doctor` warns rather than fails without it.
 - `eng doctor` also shows, for each product, whether you can use its `eng ops`: gh needs `read:org`, and you need to
   be in the product's GitHub team. A missing team is a warning with the link to ask for access, not a failure.
+- `eng doctor` shows each of ship, idea and eng with its version, and fails when a name is found in more than one PATH
+  folder or the first match is not in `pnpm bin -g`. pnpm 11 moved global bins to `PNPM_HOME/bin`, so shims left in
+  `PNPM_HOME` by pnpm 10 shadow a fresh install. Fix it with `pnpm setup` (pnpm 11.15.1 or later), or delete the old
+  `ship`, `idea` and `eng` shims in `PNPM_HOME`. `eng update` records an install only after this check passes. The
+  installers remove those old shims for you (only those three names, only files that are pnpm shims).
 - Every time you run `eng`, it first checks GitHub (a quick `git ls-remote`) and updates eng, ship and idea if
   any is newer, then carries on. Offline, it skips the check. `ENG_NO_UPDATE=1` turns it off.
 - Run `eng update` whenever you start work after a break, to pull your repos too. It is safe to run any time.

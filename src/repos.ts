@@ -1,17 +1,7 @@
 // The repos a developer works in, and how each one should be brought up to date.
 export const ORG = 'ideaSquared';
 
-export const REPOS: readonly string[] = [
-  'adopt-dont-shop',
-  'agent-idea',
-  'creatrgrid',
-  'eng',
-  'gaminginit',
-  'gaminginit-bot',
-  'ideasquared-bot',
-  'pairflix',
-  'shipper',
-];
+export const REPOS: readonly string[] = ['adopt-dont-shop', 'agent-idea', 'creatrgrid', 'eng', 'ideasquared-bot', 'ideasquared-website', 'pairflix', 'shipper'];
 
 // Global CLIs, installed and updated from their repos' default branches, with the command each one gives you.
 export const GLOBAL_CLIS: Readonly<Record<string, string>> = {
