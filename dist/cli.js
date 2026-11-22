@@ -424,7 +424,7 @@ const main = async () => {
     }
     const startup = resolveEnvironment(values);
     if (!startup.ok) {
-        console.log(`${startup.error}\n\n${HELP}`);
+        console.error(`${startup.error}\n\n${HELP}`);
         return 1;
     }
     const { env } = startup;
@@ -443,7 +443,7 @@ const main = async () => {
     if (!command && !values.help && process.stdin.isTTY && process.stdout.isTTY)
         return launch(env);
     if (values.help || !command) {
-        console.log(HELP);
+        (values.help ? console.log : console.error)(HELP);
         return values.help ? 0 : 1;
     }
     const dir = values.dir ? resolve(values.dir) : reposDir();
@@ -452,7 +452,7 @@ const main = async () => {
     const result = runCommand(command, dir, env, isOps ? process.argv.slice(3) : []);
     if (result !== undefined)
         return result;
-    console.log(`Unknown command: ${command}\n\n${HELP}`);
+    console.error(`Unknown command: ${command}\n\n${HELP}`);
     return 1;
 };
 process.exitCode = await main();
