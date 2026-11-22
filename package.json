@@ -14,7 +14,8 @@
     "test": "vitest run",
     "typecheck": "tsc",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint": "eslint ."
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
