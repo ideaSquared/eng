@@ -30,7 +30,11 @@ jobs:
             echo "$version is already released."
             exit 0
           fi
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            tag -a "$version" -m "$version" "$GITHUB_SHA"
-          git push origin "$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
+            echo "$version already has a tag; creating its release from that tag."
+          else
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              tag -a "$version" -m "$version" "$GITHUB_SHA"
+            git push origin "$version"
+          fi
           gh release create "$version" --verify-tag --title "$version" --generate-notes
