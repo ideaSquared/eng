@@ -1,4 +1,4 @@
-import { CatalogSchema, ErrorResponseSchema, InvokeResponseSchema, OpsError, } from "./contract.js";
+import { CatalogSchema, ErrorResponseSchema, InvokeResponseSchema, OpsError } from "./contract.js";
 const defaultFetch = (input, init) => fetch(input, init);
 async function call(baseUrl, path, token, fetcher, init) {
     const response = await fetcher(`${baseUrl.replace(/\/+$/, '')}${path}`, {

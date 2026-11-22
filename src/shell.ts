@@ -7,10 +7,7 @@ import { paint, PALETTE } from './theme.ts';
 export type ShellState = { readonly env: Environment };
 
 export type Outcome =
-  | { kind: 'run'; command: 'eng' | 'ship' | 'idea'; args: string[] }
-  | { kind: 'message'; text: string }
-  | { kind: 'empty' }
-  | { kind: 'exit' };
+  { kind: 'run'; command: 'eng' | 'ship' | 'idea'; args: string[] } | { kind: 'message'; text: string } | { kind: 'empty' } | { kind: 'exit' };
 
 const message = (text: string): Outcome => ({ kind: 'message', text });
 const run = (command: 'eng' | 'ship' | 'idea', args: string[]): Outcome => ({ kind: 'run', command, args });
@@ -69,8 +66,7 @@ const runs = (rest: string[]): Outcome => {
 };
 
 // The environment cannot be switched: any argument gets the fixed-session message.
-const showEnv = (rest: string[], state: ShellState): Outcome =>
-  message(rest.length === 0 ? `environment: ${state.env}` : fixedMessage(state.env));
+const showEnv = (rest: string[], state: ShellState): Outcome => message(rest.length === 0 ? `environment: ${state.env}` : fixedMessage(state.env));
 
 // ship lines that never act on an environment. Every other ship line with no environment word acts on all of them
 // (freeze, unfreeze) or on whichever one ship picks, which can be production.
@@ -99,14 +95,15 @@ const passthrough = (command: 'ship' | 'idea', rest: string[], state: ShellState
     const [first] = rest;
     const targets = namedEnvironments(shipPositionals(rest));
     if (first !== undefined && !SHIP_WITHOUT_ENV.includes(first) && targets.length === 0) {
-      return message(`Refused: name the environment. This session is ${state.env}: put ${state.env} after the product, as in ship deploy <product> ${state.env}.`);
+      return message(
+        `Refused: name the environment. This session is ${state.env}: put ${state.env} after the product, as in ship deploy <product> ${state.env}.`,
+      );
     }
   }
   return run(command, rest);
 };
 
-const noArgs = (word: string, rest: string[], outcome: Outcome): Outcome =>
-  rest.length > 0 ? usage(word) : outcome;
+const noArgs = (word: string, rest: string[], outcome: Outcome): Outcome => (rest.length > 0 ? usage(word) : outcome);
 
 // On Windows every command starts through cmd.exe, which rewrites ^, %VAR%, quotes and !, and treats & | < > ( ) as
 // operators. A word with any of those could reach the tool as something other than what the environment check saw
@@ -159,8 +156,23 @@ export const route = (line: string, state: ShellState): Outcome => {
 };
 
 export const COMMAND_WORDS: readonly string[] = [
-  'deploy', 'redeploy', 'rollback', 'status', 'logs', 'runs', 'ops', 'find', 'doctor', 'update', 'theme',
-  'ship', 'idea', 'env', 'help', 'exit', 'quit',
+  'deploy',
+  'redeploy',
+  'rollback',
+  'status',
+  'logs',
+  'runs',
+  'ops',
+  'find',
+  'doctor',
+  'update',
+  'theme',
+  'ship',
+  'idea',
+  'env',
+  'help',
+  'exit',
+  'quit',
 ];
 
 // A completed word that is followed by an argument gets a trailing space, so the next word can be typed straight away.

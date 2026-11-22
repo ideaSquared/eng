@@ -46,26 +46,13 @@ describe('the production warning', () => {
   it('renders exactly this at 120 columns, every row 120 wide', () => {
     const rows = render(120);
     expect(rows.every((r) => r.length === 120)).toBe(true);
-    expect(rows.map((r) => r.trim())).toEqual([
-      '',
-      'PRODUCTION',
-      '',
-      'Commands in this session affect real users and real data.',
-      '',
-    ]);
+    expect(rows.map((r) => r.trim())).toEqual(['', 'PRODUCTION', '', 'Commands in this session affect real users and real data.', '']);
   });
 
   it('renders exactly this at 40 columns, wrapping between words only', () => {
     const rows = render(40);
     expect(rows.every((r) => r.length === 40)).toBe(true);
-    expect(rows.map((r) => r.trim())).toEqual([
-      '',
-      'PRODUCTION',
-      '',
-      'Commands in this session affect real',
-      'users and real data.',
-      '',
-    ]);
+    expect(rows.map((r) => r.trim())).toEqual(['', 'PRODUCTION', '', 'Commands in this session affect real', 'users and real data.', '']);
   });
 
   it('keeps PRODUCTION whole even on a tiny or unknown width', () => {
@@ -73,7 +60,11 @@ describe('the production warning', () => {
   });
 
   it('is drawn on the danger background', () => {
-    expect(productionWarning(80).split('\n').every((l) => l.includes('48;2;248;113;113'))).toBe(true);
+    expect(
+      productionWarning(80)
+        .split('\n')
+        .every((l) => l.includes('48;2;248;113;113')),
+    ).toBe(true);
   });
 });
 

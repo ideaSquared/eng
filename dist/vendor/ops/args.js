@@ -16,9 +16,7 @@ function checkValue(field, value) {
         case 'id':
             return typeof value === 'string' && ID.test(value) ? value : bad('an id: 1 to 128 characters, no spaces');
         case 'enum':
-            return typeof value === 'string' && (field.values ?? []).includes(value)
-                ? value
-                : bad(`one of: ${(field.values ?? []).join(', ')}`);
+            return typeof value === 'string' && (field.values ?? []).includes(value) ? value : bad(`one of: ${(field.values ?? []).join(', ')}`);
     }
 }
 // The one validation both sides use: the server before running a handler, the client before calling. Strict, with no

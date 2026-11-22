@@ -92,7 +92,7 @@ const passthrough = (command, rest, state) => {
     }
     return run(command, rest);
 };
-const noArgs = (word, rest, outcome) => rest.length > 0 ? usage(word) : outcome;
+const noArgs = (word, rest, outcome) => (rest.length > 0 ? usage(word) : outcome);
 // On Windows every command starts through cmd.exe, which rewrites ^, %VAR%, quotes and !, and treats & | < > ( ) as
 // operators. A word with any of those could reach the tool as something other than what the environment check saw
 // (`produc^tion` becomes `production`), or start a second command. So a line may only hold plain words.
@@ -143,8 +143,23 @@ export const route = (line, state) => {
     }
 };
 export const COMMAND_WORDS = [
-    'deploy', 'redeploy', 'rollback', 'status', 'logs', 'runs', 'ops', 'find', 'doctor', 'update', 'theme',
-    'ship', 'idea', 'env', 'help', 'exit', 'quit',
+    'deploy',
+    'redeploy',
+    'rollback',
+    'status',
+    'logs',
+    'runs',
+    'ops',
+    'find',
+    'doctor',
+    'update',
+    'theme',
+    'ship',
+    'idea',
+    'env',
+    'help',
+    'exit',
+    'quit',
 ];
 // A completed word that is followed by an argument gets a trailing space, so the next word can be typed straight away.
 const TAKES_ARGUMENT = [...SHIP_PRODUCTS, ...IDEA_PROJECTS, 'deploy', 'redeploy', 'rollback', 'logs', 'runs', 'ops', 'find', 'ship', 'idea'];

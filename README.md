@@ -112,21 +112,21 @@ eng ops find <words...>      # search every product's commands
 `eng shell` (or Shell in the menu) opens a prompt that shows the session's environment, e.g. `◆ staging › `
 (red in production), so you type short commands without the tool prefix:
 
-| You type                          | It runs                                  |
-| --------------------------------- | ---------------------------------------- |
-| `deploy ads staging`              | `ship deploy ads staging`                |
-| `redeploy ads staging`            | `ship deploy ads staging --redeploy`     |
-| `rollback ads [env]`              | `ship rollback ads <env>`                |
-| `status`                          | `ship status`                            |
-| `logs ads`                        | `idea logs ads --env <current env>`      |
-| `runs ads`                        | `idea runs ads --failed`                 |
-| `ops <...>`                       | `eng ops <...>` (the rest of the line is passed through) |
-| `find <words...>`                 | `eng ops find <words...>`                |
-| `doctor`, `update`, `theme`       | the eng command of that name             |
-| `ship <...>`, `idea <...>`        | that tool, exactly as typed (a `ship` line other than `status` must name the session's environment) |
-| `env`                             | show the session's environment (it cannot be switched) |
-| `help`, `exit` / `quit` / Ctrl-D  | list commands, leave                     |
-| `help <words...>`                 | only the help lines containing every word |
+| You type                         | It runs                                                                                             |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `deploy ads staging`             | `ship deploy ads staging`                                                                           |
+| `redeploy ads staging`           | `ship deploy ads staging --redeploy`                                                                |
+| `rollback ads [env]`             | `ship rollback ads <env>`                                                                           |
+| `status`                         | `ship status`                                                                                       |
+| `logs ads`                       | `idea logs ads --env <current env>`                                                                 |
+| `runs ads`                       | `idea runs ads --failed`                                                                            |
+| `ops <...>`                      | `eng ops <...>` (the rest of the line is passed through)                                            |
+| `find <words...>`                | `eng ops find <words...>`                                                                           |
+| `doctor`, `update`, `theme`      | the eng command of that name                                                                        |
+| `ship <...>`, `idea <...>`       | that tool, exactly as typed (a `ship` line other than `status` must name the session's environment) |
+| `env`                            | show the session's environment (it cannot be switched)                                              |
+| `help`, `exit` / `quit` / Ctrl-D | list commands, leave                                                                                |
+| `help <words...>`                | only the help lines containing every word                                                           |
 
 When a deploy, redeploy, rollback or logs line names no environment, the session's is used. If it names a different
 one it is refused with a message, never overridden (`ship ...` and `idea ...` lines too, when they name the other

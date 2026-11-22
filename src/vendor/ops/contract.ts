@@ -38,10 +38,7 @@ export const CommandSchema = z
     dryRun: z.boolean(),
   })
   .refine((command) => command.id === `${command.group}.${command.name}`, 'id must be "<group>.<name>"')
-  .refine(
-    (command) => new Set(command.fields.map((field) => field.name)).size === command.fields.length,
-    'field names must be unique',
-  );
+  .refine((command) => new Set(command.fields.map((field) => field.name)).size === command.fields.length, 'field names must be unique');
 export type Command = z.infer<typeof CommandSchema>;
 
 export const CatalogSchema = z.object({

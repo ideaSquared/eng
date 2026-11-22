@@ -17,9 +17,7 @@ export const restartHint = (env) => env === 'production' ? 'To use staging, rest
 export const fixedMessage = (env) => `The environment is fixed for this session (${env}). ${restartHint(env)}`;
 export const mismatchMessage = (session, named) => `Refused: this session is fixed to ${session}, and that line names ${named}. ${restartHint(session)}`;
 // Colours and badge for each environment, shared by the app and the shell prompt.
-export const envStyle = (env) => env === 'production'
-    ? { color: PALETTE.danger, badge: 'PRODUCTION' }
-    : { color: PALETTE.accent, badge: 'staging' };
+export const envStyle = (env) => env === 'production' ? { color: PALETTE.danger, badge: 'PRODUCTION' } : { color: PALETTE.accent, badge: 'staging' };
 const wrap = (text, width) => text.split(' ').reduce((lines, word) => {
     const last = lines[lines.length - 1];
     if (last === undefined || `${last} ${word}`.length > width)

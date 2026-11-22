@@ -292,7 +292,10 @@ const opsCredential = () => {
 const opsTeams = () => {
     const token = opsToken();
     const listed = token === undefined ? undefined : opsGh(token, ['api', 'user/teams', '--paginate', '--jq', '.[] | .organization.login + "/" + .slug']);
-    return listed?.split('\n').map((line) => line.trim().toLowerCase()).filter(Boolean);
+    return listed
+        ?.split('\n')
+        .map((line) => line.trim().toLowerCase())
+        .filter(Boolean);
 };
 // One readline for the whole run: lines are queued, so piped input works and a closed input answers undefined
 // instead of hanging. Prompts go to stderr, so stdout stays the result.

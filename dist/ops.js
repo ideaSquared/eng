@@ -131,9 +131,7 @@ export const isConfirmed = (confirmation, answer) => {
 };
 // ---- search --------------------------------------------------------------------------------------------------
 export const searchWords = (text) => text.toLowerCase().split(/\s+/).filter(Boolean);
-const searchText = (command) => [command.id, command.group, command.name, command.summary, ...command.fields.flatMap((field) => [field.name, field.description])]
-    .join('\n')
-    .toLowerCase();
+const searchText = (command) => [command.id, command.group, command.name, command.summary, ...command.fields.flatMap((field) => [field.name, field.description])].join('\n').toLowerCase();
 // A command matches when every word appears (any case) in its id, group, name, summary, or field names and descriptions.
 export const commandMatches = (command, words) => {
     const text = searchText(command);
@@ -211,11 +209,7 @@ export const formatResponse = (response, p = plain) => [
     ...(response.summary === undefined ? [] : [p('success', response.summary)]),
     ...formatResult(response.result, p),
 ];
-export const formatHeader = (product, environment, commandId, p = plain) => [
-    p('primary', `ops ${product}`),
-    p(environment === 'production' ? 'danger' : 'info', environment),
-    ...(commandId === undefined ? [] : [commandId]),
-].join(' · ');
+export const formatHeader = (product, environment, commandId, p = plain) => [p('primary', `ops ${product}`), p(environment === 'production' ? 'danger' : 'info', environment), ...(commandId === undefined ? [] : [commandId])].join(' · ');
 const commandLine = (command, idWidth, number, p) => `  ${number}${command.id.padEnd(idWidth)}  ${p(command.kind === 'write' ? 'warning' : 'muted', command.kind.padEnd(5))}  ${command.summary}`;
 const groupsOf = (commands) => {
     const groups = [...new Set(commands.map((c) => c.group))];
@@ -243,7 +237,7 @@ export const formatProducts = (env, p = plain) => {
         '',
         p('muted', 'Usage: eng ops <product> [--env staging|production]'),
         p('muted', '       eng ops <product> <group> <name> [args...] [--yes] [--json-output]'),
-        p('muted', '       eng ops find <words...>   search every product\'s commands'),
+        p('muted', "       eng ops find <words...>   search every product's commands"),
         p('muted', 'ads: unlocks and history stay in `pnpm ops` in adopt-dont-shop.'),
         p('muted', 'The environment is ENG_ENV (staging unless eng --production); --env overrides it.'),
         p('muted', 'Point a product anywhere with ENG_OPS_URL_<PRODUCT>_<STAGING|PRODUCTION>.'),

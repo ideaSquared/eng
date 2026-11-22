@@ -108,7 +108,11 @@ export const formatResults = (results: readonly Result[]): { lines: string[]; ok
 // does not report scopes), so a caller can tell "no scopes" from "could not tell".
 export const parseScopes = (headers: string | undefined): string[] | undefined => {
   const line = headers?.split('\n').find((l) => /^x-oauth-scopes:/i.test(l));
-  return line?.slice(line.indexOf(':') + 1).split(',').map((s) => s.trim()).filter(Boolean);
+  return line
+    ?.slice(line.indexOf(':') + 1)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 };
 
 export const ORG_NAME = 'ideaSquared';

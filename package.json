@@ -12,13 +12,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
     "@types/react": "18.3.31",
+    "eslint": "^10.15.0",
+    "husky": "^9.1.7",
     "ink-testing-library": "4.0.0",
+    "prettier": "^3.10.1",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.73.0",
     "vitest": "^5.0.2"
   },
   "bin": {

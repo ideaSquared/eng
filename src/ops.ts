@@ -49,8 +49,7 @@ export const resolveUrl = (product: OpsProduct, environment: OpsEnvironment, env
 export const configuredEnvironments = (product: OpsProduct, env: Env): OpsEnvironment[] =>
   OPS_ENVIRONMENTS.filter((environment) => resolveUrl(product, environment, env) !== undefined);
 
-export const deployedProducts = (env: Env): OpsProduct[] =>
-  OPS_PRODUCTS.filter((product) => configuredEnvironments(product, env).length > 0);
+export const deployedProducts = (env: Env): OpsProduct[] => OPS_PRODUCTS.filter((product) => configuredEnvironments(product, env).length > 0);
 
 // Colours come from PALETTE only. `plain` is for pipes and NO_COLOR.
 type Role = 'primary' | 'accent' | 'muted' | 'success' | 'warning' | 'danger' | 'info';
@@ -140,9 +139,7 @@ export const routeOps = (argv: readonly string[], fallback: OpsEnvironment = 'st
 
 // ---- confirmation --------------------------------------------------------------------------------------------
 
-export type Confirmation =
-  | { kind: 'yesno'; prompt: string }
-  | { kind: 'typed'; warning: string; prompt: string; expected: string };
+export type Confirmation = { kind: 'yesno'; prompt: string } | { kind: 'typed'; warning: string; prompt: string; expected: string };
 
 // Staging asks y/N, which --yes skips. Production always asks for the product name: --yes never skips that.
 export const confirmationFor = (environment: OpsEnvironment, product: string, commandId: string, yes: boolean): Confirmation | undefined => {
@@ -168,9 +165,7 @@ export const isConfirmed = (confirmation: Confirmation, answer: string | undefin
 export const searchWords = (text: string): string[] => text.toLowerCase().split(/\s+/).filter(Boolean);
 
 const searchText = (command: Command): string =>
-  [command.id, command.group, command.name, command.summary, ...command.fields.flatMap((field) => [field.name, field.description])]
-    .join('\n')
-    .toLowerCase();
+  [command.id, command.group, command.name, command.summary, ...command.fields.flatMap((field) => [field.name, field.description])].join('\n').toLowerCase();
 
 // A command matches when every word appears (any case) in its id, group, name, summary, or field names and descriptions.
 export const commandMatches = (command: Command, words: readonly string[]): boolean => {
@@ -219,16 +214,14 @@ export const formatFind = (matches: readonly ProductCommands[], environment: Ops
 
 // ---- output --------------------------------------------------------------------------------------------------
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const scalar = (value: unknown): string => {
   if (value === null || value === undefined) return '-';
   return typeof value === 'object' ? JSON.stringify(value) : String(value);
 };
 
-const isRecordList = (value: unknown): value is Record<string, unknown>[] =>
-  Array.isArray(value) && value.length > 0 && value.every(isRecord);
+const isRecordList = (value: unknown): value is Record<string, unknown>[] => Array.isArray(value) && value.length > 0 && value.every(isRecord);
 
 const formatTable = (rows: readonly Record<string, unknown>[], p: Painter): string[] => {
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
@@ -265,11 +258,9 @@ export const formatResponse = (response: InvokeResponse, p: Painter = plain): st
 ];
 
 export const formatHeader = (product: string, environment: OpsEnvironment, commandId: string | undefined, p: Painter = plain): string =>
-  [
-    p('primary', `ops ${product}`),
-    p(environment === 'production' ? 'danger' : 'info', environment),
-    ...(commandId === undefined ? [] : [commandId]),
-  ].join(' · ');
+  [p('primary', `ops ${product}`), p(environment === 'production' ? 'danger' : 'info', environment), ...(commandId === undefined ? [] : [commandId])].join(
+    ' · ',
+  );
 
 const commandLine = (command: Command, idWidth: number, number: string, p: Painter): string =>
   `  ${number}${command.id.padEnd(idWidth)}  ${p(command.kind === 'write' ? 'warning' : 'muted', command.kind.padEnd(5))}  ${command.summary}`;
@@ -287,9 +278,7 @@ export const formatCatalog = (catalog: Catalog, p: Painter = plain, numbered = f
   return groupsOf(shown).flatMap(([group, commands]) => [
     '',
     p('accent', group),
-    ...commands.map((command) =>
-      commandLine(command, idWidth, numbered ? `${String(catalog.commands.indexOf(command) + 1)}.`.padEnd(numberWidth) : '', p),
-    ),
+    ...commands.map((command) => commandLine(command, idWidth, numbered ? `${String(catalog.commands.indexOf(command) + 1)}.`.padEnd(numberWidth) : '', p)),
   ]);
 };
 
@@ -304,7 +293,7 @@ export const formatProducts = (env: Env, p: Painter = plain): string[] => {
     '',
     p('muted', 'Usage: eng ops <product> [--env staging|production]'),
     p('muted', '       eng ops <product> <group> <name> [args...] [--yes] [--json-output]'),
-    p('muted', '       eng ops find <words...>   search every product\'s commands'),
+    p('muted', "       eng ops find <words...>   search every product's commands"),
     p('muted', 'ads: unlocks and history stay in `pnpm ops` in adopt-dont-shop.'),
     p('muted', 'The environment is ENG_ENV (staging unless eng --production); --env overrides it.'),
     p('muted', 'Point a product anywhere with ENG_OPS_URL_<PRODUCT>_<STAGING|PRODUCTION>.'),
@@ -417,7 +406,7 @@ const findCommand = (catalog: Catalog, answer: string): Command | undefined => {
 export const pickCommand = async (catalog: Catalog, deps: OpsDeps): Promise<{ command: Command; words: string[] } | undefined> => {
   const show = (shown: readonly Command[]) => deps.out(formatCatalog(catalog, deps.paint, true, shown).join('\n') + '\n');
   show(catalog.commands);
-  for (let filtered = false; ; ) {
+  for (let filtered = false; ;) {
     const answer = await deps.ask(
       filtered
         ? 'Pick a number or id, type words to filter again (enter to show all): '
@@ -453,8 +442,7 @@ const executeCommand = async (target: Target, command: Command, words: readonly 
   const args = parseArgs(command, words);
   // Human lines go to stderr under --json-output, so stdout is only the JSON result.
   const note = jsonOutput ? deps.err : deps.out;
-  const show = (response: InvokeResponse) =>
-    deps.out(jsonOutput ? JSON.stringify(response.result, null, 2) : formatResponse(response, p).join('\n'));
+  const show = (response: InvokeResponse) => deps.out(jsonOutput ? JSON.stringify(response.result, null, 2) : formatResponse(response, p).join('\n'));
   const call = (mode: 'run' | 'preview') => invoke(url, token, { command: command.id, args, mode }, deps.fetch);
 
   note(formatHeader(product.name, environment, command.id, p));

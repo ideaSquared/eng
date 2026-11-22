@@ -19,8 +19,10 @@ const pick = (title: string, names: readonly string[], next: (name: string) => M
 
 // A redeploy ships the same commit again even when it is already live (ship deploy --redeploy). The environment is
 // the session's, so there is no environment step; ship itself still asks for the product name in production.
-const deployTo = (env: Environment, verb: 'Deploy' | 'Redeploy') => (product: string): Action =>
-  run('ship', ['deploy', product, env, ...(verb === 'Redeploy' ? ['--redeploy'] : [])]);
+const deployTo =
+  (env: Environment, verb: 'Deploy' | 'Redeploy') =>
+  (product: string): Action =>
+    run('ship', ['deploy', product, env, ...(verb === 'Redeploy' ? ['--redeploy'] : [])]);
 
 export const homeMenu = (env: Environment): Menu => ({
   title: 'What do you want to do?',
@@ -45,8 +47,12 @@ export const homeMenu = (env: Environment): Menu => ({
     { label: 'Shell', hint: `a prompt for deploy, logs, runs and ops (${env})`, next: run('eng', ['shell']) },
     {
       label: 'Ops',
-      hint: 'run a product\'s ops commands',
-      next: pick('Ops for which product?', deployedProducts(process.env).map((product) => product.name), (p) => run('eng', ['ops', p])),
+      hint: "run a product's ops commands",
+      next: pick(
+        'Ops for which product?',
+        deployedProducts(process.env).map((product) => product.name),
+        (p) => run('eng', ['ops', p]),
+      ),
     },
     { label: 'Doctor', hint: 'check what is missing or out of date', next: run('eng', ['doctor']) },
     { label: 'Update', hint: 'update the CLIs and pull every clean repo', next: run('eng', ['update']) },
@@ -75,5 +81,4 @@ export const searchMenu = (index: readonly SearchEntry[], text: string): SearchE
   return index.filter((entry) => words.every((word) => entry.label.toLowerCase().includes(word)));
 };
 
-export const describeAction = (action: Action): string =>
-  action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng';
+export const describeAction = (action: Action): string => (action.kind === 'run' ? [action.command, ...action.args].join(' ') : 'leave eng');
