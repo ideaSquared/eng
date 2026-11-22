@@ -237,6 +237,7 @@ describe('tab completion', () => {
 
   it('completes project names after logs and runs', () => {
     expect(complete('logs pa')[0]).toEqual(['pairflix ']);
+    expect(complete('logs ag')[0]).toEqual(['agent-idea ']);
     expect(complete('runs ')[0]).toContain('ads ');
   });
 
