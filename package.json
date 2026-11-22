@@ -15,7 +15,8 @@
     "typecheck": "tsc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "prepare": "node scripts/prepare.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",
