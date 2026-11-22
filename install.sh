@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # eng installer for macOS, Linux and WSL (bash or zsh). Run:
 #   curl -fsSL https://raw.githubusercontent.com/ideaSquared/eng/main/install.sh | bash
-# It installs what eng needs (Node 22, pnpm, git, the GitHub CLI), then the eng CLI, then runs `eng setup`.
+# It installs what eng needs (Node 24, pnpm, git, the GitHub CLI), then the eng CLI, then runs `eng setup`.
 set -euo pipefail
 
 say() { printf '\n→ %s\n' "$1"; }
 has() { command -v "$1" >/dev/null 2>&1; }
 
 node_ok() {
-  has node && node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=18)?0:1)'
+  has node && node -e 'const [a]=process.versions.node.split(".").map(Number);process.exit(a>=24?0:1)'
 }
 
 if ! node_ok; then
-  say "Installing Node 22 with fnm"
+  say "Installing Node 24 with fnm"
   if ! has fnm; then
     if has brew; then brew install fnm; else curl -fsSL https://fnm.vercel.app/install | bash; fi
     export PATH="$HOME/.local/share/fnm:$HOME/.fnm:$PATH"
@@ -22,9 +22,9 @@ if ! node_ok; then
   case "$(basename "${SHELL:-bash}")" in zsh) profile="$HOME/.zshrc" ;; *) profile="$HOME/.bashrc" ;; esac
   # shellcheck disable=SC2016 # written to the profile as-is, to run in each new shell
   grep -qs 'fnm env' "$profile" || printf '\neval "$(fnm env --use-on-cd)"\n' >>"$profile"
-  fnm install 22
-  fnm default 22
-  fnm use 22
+  fnm install 24
+  fnm default 24
+  fnm use 24
 fi
 
 if ! has git; then

@@ -6,7 +6,7 @@
   "description": "One command to set up and update an ideaSquared developer machine.",
   "type": "module",
   "engines": {
-    "node": ">=22.18"
+    "node": ">=24.0.0 <25.0.0"
   },
   "packageManager": "pnpm@10.34.3",
   "scripts": {
@@ -15,7 +15,7 @@
     "typecheck": "tsc"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
+    "@types/node": "^24.0.0",
     "@types/react": "18.3.31",
     "ink-testing-library": "4.0.0",
     "typescript": "~5.9.3",

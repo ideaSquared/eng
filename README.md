@@ -18,7 +18,7 @@ irm https://raw.githubusercontent.com/ideaSquared/eng/main/install.ps1 | iex
 
 The installer:
 
-1. installs Node 22, pnpm, git and the GitHub CLI if they are missing (fnm or Homebrew or apt on macOS and Linux,
+1. installs Node 24, pnpm, git and the GitHub CLI if they are missing (fnm or Homebrew or apt on macOS and Linux,
    winget on Windows);
 2. installs the `eng` CLI;
 3. runs `eng setup`, which:

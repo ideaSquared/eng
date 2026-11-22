@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atLeast, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, parseVersion, type Run, type Tool } from '../src/checks.ts';
+import { atLeast, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, parseVersion, TOOLS, type Run, type Tool } from '../src/checks.ts';
 
 const node: Tool = {
   name: 'Node',
@@ -32,6 +32,12 @@ describe('versions', () => {
 });
 
 describe('checkTool', () => {
+  it('requires Node 24 on this machine', () => {
+    const required = TOOLS.find((tool) => tool.name === 'Node');
+    expect(required && checkTool(required, answers({ node: 'v22.20.1' }))).toMatchObject({ ok: false });
+    expect(required && checkTool(required, answers({ node: 'v24.0.0' }))).toMatchObject({ ok: true });
+  });
+
   it('passes a new enough tool', () => {
     expect(checkTool(node, answers({ node: 'v22.20.1' }))).toEqual({
       name: 'Node',

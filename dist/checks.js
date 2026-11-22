@@ -3,10 +3,10 @@ export const TOOLS = [
         name: 'Node',
         command: 'node',
         args: ['--version'],
-        min: [22, 18, 0],
+        min: [24, 0, 0],
         showVersion: true,
         required: true,
-        fix: 'Re-run the installer, or install Node 22.18 or later from https://nodejs.org',
+        fix: 'Re-run the installer, or install Node 24 or later from https://nodejs.org',
     },
     {
         name: 'pnpm',
