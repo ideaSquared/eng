@@ -33,6 +33,6 @@ describe('the product lists', () => {
   });
 
   it('reads logs and runs only for the projects agent-idea serves', () => {
-    expect(IDEA_PROJECTS).toEqual(['ads', 'creatrgrid', 'ideasquared-bot', 'pairflix']);
+    expect(IDEA_PROJECTS).toEqual(['ads', 'agent-idea', 'creatrgrid', 'ideasquared-bot', 'pairflix']);
   });
 });

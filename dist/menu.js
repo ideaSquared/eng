@@ -1,7 +1,7 @@
 import { deployedProducts } from "./ops.js";
 // Kept in step with shipper's PRODUCTS and agent-idea's projects.
 export const SHIP_PRODUCTS = ['ads', 'agent-idea', 'creatrgrid', 'ideasquared-bot', 'ideasquared-website', 'pairflix'];
-export const IDEA_PROJECTS = ['ads', 'creatrgrid', 'ideasquared-bot', 'pairflix'];
+export const IDEA_PROJECTS = ['ads', 'agent-idea', 'creatrgrid', 'ideasquared-bot', 'pairflix'];
 const run = (command, args) => ({ kind: 'run', command, args });
 const pick = (title, names, next) => ({
     title,

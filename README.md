@@ -72,6 +72,7 @@ Deploy and Redeploy in the menu go product, then straight to `ship deploy <produ
 `idea logs <project> --env <session env>`. The menu border, title and a PRODUCTION (or staging) badge show where you
 are, and the production colours are red. `eng` exports `ENG_ENV=staging|production` so ship, idea and `eng ops`
 inherit it. ship still asks you to type the product name for a production deploy; eng never adds `--yes`.
+Logs and runs list ads, agent-idea, creatrgrid, ideasquared-bot and pairflix; agent-idea has production logs only, so in staging `idea` returns no logs for it.
 
 ## The terminal skin
 
