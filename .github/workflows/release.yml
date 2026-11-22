@@ -1,0 +1,36 @@
+name: Release
+
+# Tags and publishes a GitHub Release when package.json carries a version that has no release yet.
+# Bump `version` in the release PR; merging it releases. Notes are generated from the merged pull requests.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Tag and release a new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "$version is already released."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            tag -a "$version" -m "$version" "$GITHUB_SHA"
+          git push origin "$version"
+          gh release create "$version" --verify-tag --title "$version" --generate-notes
