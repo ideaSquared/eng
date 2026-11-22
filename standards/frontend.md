@@ -15,7 +15,9 @@ Check: `git grep -n "WCAG 2.2 AA" -- CLAUDE.md .claude/CLAUDE.md docs/ACCESSIBIL
 renders interactive UI (`vitest-axe` or equivalent) and on each top-level page or route (`@axe-core/playwright` in an
 existing Playwright suite, otherwise the page rendered in Vitest), with the tags `wcag2a`, `wcag2aa`, `wcag21a`,
 `wcag21aa` and `wcag22aa`. [U1][U2]
-Check: a devDependency on `vitest-axe`, `jest-axe` or `@axe-core/playwright`; tests call it; a CI workflow runs those
+Check: a devDependency on `vitest-axe`, `jest-axe` or `@axe-core/playwright`; the axe calls set all five tags and
+assert zero violations (`toHaveNoViolations()` or `expect(results.violations).toEqual([])`); every exported interactive
+component and every top-level route or page has an axe test (or an entry in the UI-03 list); a CI workflow runs those
 tests on `pull_request`.
 
 **UI-03** · MUST · No axe rule is turned off globally. Known violations that cannot be fixed yet are listed in one file,
@@ -43,7 +45,9 @@ Check: a global reduced-motion rule exists, or each animation/transition style h
 
 **UI-09** · MUST · Every HTML entry point sets `lang="en-GB"` (or the page's language) and a unique, descriptive
 `<title>` per route. [U1]
-Check: `grep -l 'lang="en-GB"'` matches each `index.html`; the router sets the document title per route.
+Check: every published HTML file (`index.html`, `404.html` and any other page) has a non-empty `lang` attribute that
+matches its content and a `<title>`; where the app has client-side routing, the router sets the document title per
+route.
 
 **UI-10** · MUST · Pages reflow to a 320 CSS pixel wide viewport with no horizontal scrolling and no lost content, and
 text can be zoomed to 200%. [U1]
@@ -62,8 +66,9 @@ Check: `README.md` links a `claude.ai/artifact/` Design System; the monthly UI a
 
 **UI-13** · MUST · Styles use design tokens only: no colour literals (`#hex`, `rgb(`, `hsl(`, named colours) and no
 raw pixel spacing outside the theme file(s). [U7]
-Check: `git grep -nE "#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(" -- '*.css.ts' '*.tsx'` finds nothing outside the theme
-file(s) and tests.
+Check: across `*.css.ts`, `*.css`, `*.tsx` and `*.html` (including inline `style` attributes),
+`git grep -nE "#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|\b[0-9]+px\b"` and a search for CSS named colours used as values
+(e.g. `: red`, `color: 'white'`) find nothing outside the theme file(s) and tests.
 
 **UI-14** · MUST · Every text/background token pair used together meets 4.5:1 contrast (3:1 for large text and
 non-text UI such as borders, icons and focus rings), in every theme the product ships. [U1]
