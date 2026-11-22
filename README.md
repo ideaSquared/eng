@@ -38,6 +38,13 @@ Before you start, ask for:
   `ship` check it);
 - the Discord server, where each product's `<project>-github` channel shows its deploys and alerts.
 
+To install or reinstall only the CLI (Node 24 and pnpm 10 are needed):
+
+```bash
+pnpm add -g github:ideaSquared/eng          # or github:ideaSquared/eng#vX.Y.Z for a release
+eng --version
+```
+
 ## The eng app
 
 Run `eng` on its own to open a themed menu over everything: what is live in every product (`ship status`), deploys,
@@ -88,6 +95,7 @@ eng [--production]           # open the eng app (staging unless --production; fi
 eng setup [--dir <folder>]   # sign in, install ship and idea, clone and install every repo
 eng update                   # update ship, idea and eng; pull every clean repo on its default branch
 eng doctor                   # check what is missing or out of date
+eng --version                # print the installed version
 eng theme                    # install the ideaSquared terminal skin and prompt
 eng shell [--production]     # a prompt for short commands: deploy, logs, runs, ops
 eng ops                      # list the products eng can run ops commands for, and their environments
@@ -216,6 +224,8 @@ creator, user, social account or content id, returning ids only, so `eng ops fin
 
 ```bash
 pnpm install
+pnpm format:check
+pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build        # the CLI, into dist/ (committed, so installing from GitHub needs no build)

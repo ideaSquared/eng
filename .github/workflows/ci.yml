@@ -30,6 +30,11 @@ jobs:
             echo "::error::dist/ is out of date. Run pnpm build and commit it."
             exit 1
           fi
+      - name: Packed CLI installs and runs
+        run: |
+          pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+          npm install -g "$RUNNER_TEMP"/pack/*.tgz
+          test "$(eng --version)" = "$(node -p "require('./package.json').version")"
       - name: Installers parse
         run: |
           bash -n install.sh
