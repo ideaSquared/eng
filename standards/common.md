@@ -85,7 +85,9 @@ Check: read `on:` and the step list of `ci.yml`.
 
 **COMMON-16** · MUST · Every workflow sets `concurrency`; pull-request runs cancel superseded runs, default-branch runs
 never cancel (a deploy or migration is never cut off, and an older commit never deploys after a newer one).
-Check: `yq '.concurrency' .github/workflows/*.yml` is set in each; default-branch `cancel-in-progress` is false.
+Check: `yq '.concurrency' .github/workflows/*.yml` is set in each; default-branch `cancel-in-progress` is false; the
+group a default-branch run uses is the same for every run on that branch or environment (it does not contain
+`github.sha` or `github.run_id`). Older commits are also refused at deploy time by shipper's gate, except a rollback.
 
 **COMMON-17** · SHOULD · Every job sets `timeout-minutes`.
 Check: `yq '.jobs[] | select(has("timeout-minutes") | not)' .github/workflows/*.yml` is empty.
@@ -100,7 +102,7 @@ Check: `gh api repos/{o}/{r}/rules/branches/{default}` has a `required_status_ch
 **COMMON-19** · MUST · Every `uses:` reference is pinned to a full 40-character commit SHA with a version comment
 (`uses: actions/checkout@<sha> # v5.0.0`); the one exception is `ideaSquared/*` reusable workflows, which use their
 moving major tag (`@v1`). [S8][S9]
-Check: `grep -rhoE 'uses: [^ ]+@[^ #]+' .github | grep -vE '@[0-9a-f]{40}$|^uses: (ideaSquared/|\./)'` is empty.
+Check: `grep -rhoE 'uses: [^ ]+@[^ #]+' .github | grep -vE '@[0-9a-f]{40}$|^uses: \./|^uses: ideaSquared/[^/@]+/\.github/workflows/[^@]+\.ya?ml@v[0-9]+$'` is empty.
 
 **COMMON-20** · MUST · Every workflow declares a top-level `permissions:` of `contents: read` (or `{}`), and any write
 scope is granted on the job that needs it. [S8][S9]
@@ -113,7 +115,8 @@ Check: in workflows with those triggers, no `actions/checkout` step with `ref:` 
 
 **COMMON-22** · MUST · Untrusted event data (`github.event.pull_request.title/body`, `github.head_ref`, issue and
 comment bodies, commit messages) is never interpolated into a `run:` script; it is passed through `env:`. [S8]
-Check: `grep -rnE 'run:.*\$\{\{ *github\.(event\.(pull_request|issue|comment|commits|head_commit)|head_ref)' .github/workflows` is empty (multi-line `run:` blocks included).
+Check: parse each workflow and inspect every complete `run` value (single-line and `run: |` blocks):
+`yq '.. | select(has("run")) | .run' .github/workflows/*.yml | grep -nE '\$\{\{ *github\.(event\.(pull_request|issue|comment|commits|head_commit)|head_ref)'` is empty.
 
 **COMMON-23** · SHOULD · `actions/checkout` sets `persist-credentials: false` unless the job pushes to the repo.
 Check: every checkout step without a later `git push` in the job has `persist-credentials: false`.

@@ -37,12 +37,12 @@ Check: `.routes[] | select(.custom_domain == true)` covers the apex and `www` (i
 `staging.<domain>`); a static site is public-facing, so staging is MUST (as CF-06). [P5]
 Check: `.env.staging.name` ends in `-staging`; `.env.staging.routes` set.
 
-**SITE-17** · MUST · Deploys go through shipper: `ship.yaml` has a `cloudflare-worker` component for the site with
-`wranglerEnv: staging` for staging, `production.requires: [staging]`, and a `health` URL (the site's `/`) per
-environment; CI calls `ideaSquared/shipper/.github/workflows/deploy.yml@v1` and nothing runs `wrangler deploy`
+**SITE-17** · MUST · Deploys go through shipper: `ship.yaml` has a `cloudflare-worker` component for the site with a
+`health` URL (the site's `/`) per environment, `environments.staging.wranglerEnv: staging`, and
+`production.requires: [staging]`; CI calls `ideaSquared/shipper/.github/workflows/deploy.yml@v1` and nothing runs `wrangler deploy`
 directly. [P6]
 Check: `yq '.components[].type' ship.yaml` is `cloudflare-worker`; `.environments.production.requires` has
-`staging`; each component has `health`; CF-18's grep passes.
+`staging`; `.environments.staging.wranglerEnv` is `staging`; each component has `health`; CF-18's grep passes.
 
 ## Headers
 
@@ -53,10 +53,10 @@ Check: `yq '.components[].type' ship.yaml` is `cloudflare-worker`; `.environment
 `camera=(), microphone=(), geolocation=()`), and `Cross-Origin-Opener-Policy: same-origin`. [P7][P8]
 Check: `test -f <directory>/_headers`; `curl -sI https://<domain>/` shows all six headers with those values.
 
-**SITE-05** · SHOULD · Fingerprinted or rarely changing assets (`/assets/*`, fonts) get
-`Cache-Control: public, max-age=31536000, immutable` in `_headers`; HTML keeps the default
-`public, max-age=0, must-revalidate`. [P7]
-Check: `curl -sI https://<domain>/assets/<file>` shows `immutable`; HTML does not.
+**SITE-05** · SHOULD · Only assets whose URL changes when their content changes (fingerprinted file names, e.g.
+`/assets/app.3f9a1c.css`) get `Cache-Control: public, max-age=31536000, immutable` in `_headers`; anything else, including
+HTML, keeps the default `public, max-age=0, must-revalidate`. [P7]
+Check: every `_headers` rule with `immutable` matches only fingerprinted paths; HTML responses do not show it.
 
 ## CI
 

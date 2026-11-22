@@ -11,8 +11,9 @@ Check: each `Dockerfile*` has two or more `FROM … AS` stages; the production t
 
 **VPS-02** · MUST · Every base image (`FROM`) and every third-party `image:` in a staging or production compose file
 is pinned as `name:tag@sha256:<digest>`. [D1][D3]
-Check: `grep -hE '^FROM|image:' Dockerfile* docker-compose.{prod,staging}.yml | grep -v '@sha256:' | grep -v '\${'` is empty
-(own images are covered by VPS-08).
+Check: every `FROM` that names a registry image, not an earlier stage alias (`FROM base AS runtime`), has
+`@sha256:`; every third-party `image:` in the resolved configs (`docker compose -f docker-compose.yml -f
+docker-compose.prod.yml config`, and the same for staging) has `@sha256:`. Own images are covered by VPS-07.
 
 **VPS-03** · MUST · The production stage switches to a non-root user with an explicit numeric UID/GID (`USER 1001`
 or a named user created with `-u`). [D1][D2]
@@ -88,8 +89,9 @@ Check: each service in the resolved production config has `logging.options.max-s
 **VPS-19** · MUST · TLS terminates at the reverse proxy with automatically renewed certificates (Let's Encrypt via
 certbot or Caddy), redirects HTTP to HTTPS, allows only TLS 1.2 and 1.3, and the proxy config and a renewal runbook
 are in the repo. [D8]
-Check: proxy config has `ssl_protocols TLSv1.2 TLSv1.3` and a `return 301 https://` server; a runbook names the
-renewal command; `curl -sI http://<host>` returns 301.
+Check: `curl -sI http://<host>` returns 301 or 308 to `https://`; `openssl s_client -tls1_1 -connect <host>:443`
+fails. Per proxy: nginx has `ssl_protocols TLSv1.2 TLSv1.3` and a runbook names the certbot renewal timer; Caddy
+needs neither (it renews and redirects itself, and its defaults allow only TLS 1.2+), only its `Caddyfile` in the repo.
 
 **VPS-20** · MUST · The proxy sends `Strict-Transport-Security`, `Content-Security-Policy` (with `frame-ancestors`),
 `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin` on every response. [D9]

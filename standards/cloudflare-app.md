@@ -36,9 +36,10 @@ with staging resources, so staging never touches production data. [C1]
 Check: `.env.staging.name` ends in `-staging`; each top-level binding key also exists under `env.staging` with a
 different resource id/name.
 
-**CF-07** · MUST (public-facing) / SHOULD (internal tool) · `ship.yaml` lists `staging` and `production`, with `production.requires: [staging]`, and every
-Worker component sets `wranglerEnv` for staging. [C10]
-Check: `yq '.environments.production.requires' ship.yaml` contains `staging`.
+**CF-07** · MUST (public-facing) / SHOULD (internal tool) · `ship.yaml` lists `staging` and `production`, with `production.requires: [staging]` and
+`environments.staging.wranglerEnv: staging` (shipper's schema has `wranglerEnv` on the environment, not on a
+component). [C10]
+Check: `yq '.environments.production.requires' ship.yaml` contains `staging`; `yq '.environments.staging.wranglerEnv' ship.yaml` is `staging`.
 
 ## Secrets and config
 
@@ -66,10 +67,11 @@ generated with `drizzle-kit generate` into the directory named by the D1 binding
 `migrations/meta/` is committed. [C7][C8]
 Check: `d1_databases[].migrations_dir` exists and contains `meta/_journal.json` tracked by git.
 
-**CF-12** · MUST · A shipped migration is never edited or deleted; CI fails a PR that modifies or removes a file under
-the migrations directory that exists on the default branch. [C7]
-Check: `ci.yml` runs `git diff --diff-filter=MDR --name-only origin/<default>...HEAD -- <migrations_dir>` and fails
-on output.
+**CF-12** · MUST · A shipped migration is never edited or deleted; CI fails a PR that modifies, renames or removes a
+migration SQL file that exists on the default branch (Drizzle's `meta/` files change on every new migration, so they
+are not guarded). [C7]
+Check: `ci.yml` runs `git diff --diff-filter=MDR --name-only origin/<default>...HEAD -- '<migrations_dir>/*.sql'` and
+fails on output.
 
 **CF-13** · MUST · Migrations are applied by the deploy, before the Worker code, staging first: the API component in
 `ship.yaml` sets `migrations: { d1: <BINDING> }`, and the top-level `migrations:` lists the migration directories so
@@ -109,9 +111,10 @@ bad deploy rolls back. [C10]
 Check: `yq '.components[] | select(.type=="cloudflare-worker") | .health' ship.yaml` is set for every API Worker;
 `curl -fsS <url>` returns 200.
 
-**CF-20** · SHOULD · Frontend Worker components in `ship.yaml` also set `health` (the site's `/`) or a `smoke` URL.
+**CF-20** · SHOULD · Frontend Worker components in `ship.yaml` also set `health` (the site's `/`), or the frontend's
+URL is listed in the top-level `smoke` map (keyed by environment; shipper does not accept `smoke` on a component).
 [C10]
-Check: every component has `health` or `smoke`.
+Check: every frontend component has `health`, or `yq '.smoke.<env>[]' ship.yaml` includes its URL for each environment.
 
 ## Rate limiting, CORS and caching
 

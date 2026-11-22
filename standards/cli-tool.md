@@ -15,8 +15,9 @@ Check: `jq -e '.files | index("dist")' package.json`; CI's install test (CLI-05)
 
 ## Committed dist
 
-**CLI-03** · MUST · `dist/` is committed and CI rebuilds it and fails when it differs from the committed copy. [L2]
-Check: `ci.yml` runs `pnpm build` then `git diff --exit-code -- dist` (plus any other committed build output).
+**CLI-03** · MUST · `dist/` is committed and CI rebuilds it and fails when it differs from the committed copy, including new files the build creates that were not committed. [L2]
+Check: `ci.yml` runs `pnpm build` then fails if `git status --porcelain -- dist` prints anything (untracked files
+included; plain `git diff` misses them), for `dist` and any other committed build output.
 
 **CLI-04** · MUST · `dist/` is produced only by `pnpm build` from `src/`; nobody edits it by hand, and CODEOWNERS covers
 it.
@@ -65,7 +66,8 @@ Check: `gh release view v$(jq -r .version package.json)` exists.
 
 **CLI-13** · MUST · Consumers that track a moving major tag (`v1`) only get compatible changes: a commit marked
 breaking (`type!:` or a `BREAKING CHANGE:` footer) never moves the major tag and ships as the next major. [L5]
-Check: the release workflow skips moving `vN` when a pushed commit is breaking (as shipper's `release-v1` job does).
+Check: before moving `vN`, the release workflow scans every commit in `vN..<new sha>`, not only the pushed ones, and
+refuses on a breaking one (as shipper's `release.yml` `verify` job does).
 
 **CLI-14** · SHOULD · `CHANGELOG.md` in Keep a Changelog format, updated in each release PR (release-please or
 changesets can write it). [L6]
@@ -94,12 +96,15 @@ MUST gaps from reading the repos on 2026-11-22 (dist was not run on Node 24).
 
 | Repo       | Rule ID | What is missing                                                                       |
 | ---------- | ------- | ------------------------------------------------------------------------------------- |
+| eng        | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
 | eng        | CLI-05  | no CI step installs the packed CLI and runs it                                        |
 | eng        | CLI-07  | no `--version`                                                                        |
 | eng        | CLI-12  | `version` stays `0.1.0`; no tags or GitHub Releases                                   |
+| shipper    | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
 | shipper    | CLI-05  | no CI step installs the packed CLI and runs it                                        |
 | shipper    | CLI-07  | no `--version`                                                                        |
 | shipper    | CLI-12  | `version` stays `0.1.0`; releases are only the moving `v1` tag, no `vX.Y.Z` or notes |
+| agent-idea | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
 | agent-idea | CLI-05  | no CI step installs the packed CLI and runs it                                        |
 | agent-idea | CLI-07  | `idea --version` fails with "Unknown option"                                          |
 | agent-idea | CLI-12  | only package tags (`log-v*`, `ops-v*`); the `idea` CLI has no `vX.Y.Z` releases      |
