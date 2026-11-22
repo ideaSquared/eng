@@ -11,7 +11,7 @@ repos happen to do today; each file ends with the sources it relies on.
 | [cloudflare-app.md](cloudflare-app.md) | Workers (API and static-asset frontends), D1, R2, Queues, Cron    |
 | [vps-app.md](vps-app.md)               | Docker Compose stacks deployed to a VPS behind a reverse proxy    |
 | [cli-tool.md](cli-tool.md)             | Node CLIs installed from GitHub with a committed `dist/`          |
-| [static-site.md](static-site.md)       | static HTML sites hosted on Netlify                               |
+| [static-site.md](static-site.md)       | static HTML sites served by Cloudflare Workers static assets      |
 
 ## Rule format
 
@@ -33,10 +33,10 @@ the fix is a PR to this table.
 
 | Type             | Marker in the repo                                                                                |
 | ---------------- | ------------------------------------------------------------------------------------------------- |
-| `cloudflare-app` | a `wrangler.jsonc` (or legacy `wrangler.json` / `wrangler.toml`) that is deployed                 |
+| `cloudflare-app` | a deployed `wrangler.jsonc` (or legacy `wrangler.json` / `wrangler.toml`) with a Worker script     |
 | `vps-app`        | a `docker-compose*.yml` used for staging or production, plus a `Dockerfile*`                      |
 | `cli-tool`       | a `bin` entry in a `package.json` whose target is under a committed `dist/`                       |
-| `static-site`    | HTML served as-is (no app server), hosted on Netlify                                              |
+| `static-site`    | HTML served as-is by an assets-only Worker (`wrangler.jsonc` with `assets` and no `main`)          |
 
 ## Repos
 
@@ -49,7 +49,7 @@ the fix is a PR to this table.
 | `adopt-dont-shop`     | vps-app                       | React apps, Fastify gateway, gRPC services, Postgres, nginx, Docker Compose |
 | `eng`                 | cli-tool                      | also ships `install.sh` / `install.ps1`                                     |
 | `shipper`             | cli-tool                      | also ships the reusable deploy workflow every deployable repo calls         |
-| `ideasquared-website` | static-site                   | static HTML on Netlify                                                      |
+| `ideasquared-website` | static-site                   | static HTML on Workers static assets (still on Netlify today: a gap)        |
 
 A new repo is added to this table in the PR that creates it (or the first PR after).
 

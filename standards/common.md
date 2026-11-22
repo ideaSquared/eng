@@ -6,7 +6,7 @@ Applies to every repo in [README.md](README.md), whatever its type.
 Renovate); pnpm workspaces; deploys through `ideaSquared/shipper` (`ship.yaml` + its reusable workflow); logging
 through `@ideasquared/log` with the shared logging skill (canonical copy `agent-idea/.claude/skills/logging/SKILL.md`);
 Conventional Commits; TypeScript strict; GitHub for work tracking (pull requests by default); Cloudflare frontends on
-Workers static assets.
+Workers static assets; static sites also move from Netlify to Workers static assets, deployed through shipper.
 
 Rules about `package.json`, pnpm or TypeScript apply only when the repo has a `package.json` or `.ts` files.
 
@@ -161,7 +161,7 @@ Check: `git ls-files | grep -E '(^|/)(\.env|\.dev\.vars)(\.|$)' | grep -v '\.exa
 (always for public repos). [S12]
 Check: `gh api repos/{o}/{r} --jq '.security_and_analysis | .secret_scanning.status, .secret_scanning_push_protection.status'` are `enabled`.
 
-**COMMON-33** · MUST · Deploy credentials (Cloudflare API token, SSH keys, Netlify token) are GitHub Environment
+**COMMON-33** · MUST · Deploy credentials (Cloudflare API token, SSH keys) are GitHub Environment
 secrets on `staging` / `production`, not repository secrets, and production has a required reviewer or a branch
 policy limiting it to the default branch. [S8]
 Check: `gh api repos/{o}/{r}/actions/secrets --jq '.secrets[].name'` has no deploy credential;
