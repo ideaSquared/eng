@@ -34,7 +34,7 @@ Check: `.routes[] | select(.custom_domain == true)` covers the apex and `www` (i
 `curl -sI https://<domain>/` returns 200.
 
 **SITE-16** · MUST · `env.staging` defines a `-staging` name and its own custom-domain route (e.g.
-`staging.<domain>`), as CF-06 requires for every Worker. [P5]
+`staging.<domain>`); a static site is public-facing, so staging is MUST (as CF-06). [P5]
 Check: `.env.staging.name` ends in `-staging`; `.env.staging.routes` set.
 
 **SITE-17** · MUST · Deploys go through shipper: `ship.yaml` has a `cloudflare-worker` component for the site with

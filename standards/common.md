@@ -6,7 +6,8 @@ Applies to every repo in [README.md](README.md), whatever its type.
 Renovate); pnpm workspaces; deploys through `ideaSquared/shipper` (`ship.yaml` + its reusable workflow); logging
 through `@ideasquared/log` with the shared logging skill (canonical copy `agent-idea/.claude/skills/logging/SKILL.md`);
 Conventional Commits; TypeScript strict; GitHub for work tracking (pull requests by default); Cloudflare frontends on
-Workers static assets; static sites also move from Netlify to Workers static assets, deployed through shipper.
+Workers static assets; static sites also move from Netlify to Workers static assets, deployed through shipper; a staging environment is required for anything public-facing, optional for internal tools
+(used only by the ideaSquared team).
 
 Rules about `package.json`, pnpm or TypeScript apply only when the repo has a `package.json` or `.ts` files.
 

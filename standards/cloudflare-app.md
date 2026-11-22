@@ -26,13 +26,17 @@ Check: key present where request volume warrants; otherwise defaults to 1.
 
 ## Environments
 
-**CF-06** · MUST · Each Worker defines `env.staging` with its own `name` (suffix `-staging`) and repeats every
+A **public-facing** repo serves customers or the public (creatrgrid, pairflix). An **internal tool** is used only
+by the ideaSquared team, not by customers or the public (agent-idea, ideasquared-bot); the README repo table marks
+them. A staging environment is MUST for public-facing repos and SHOULD for internal tools.
+
+**CF-06** · MUST (public-facing) / SHOULD (internal tool) · Each Worker defines `env.staging` with its own `name` (suffix `-staging`) and repeats every
 non-inheritable key (`vars`, `d1_databases`, `r2_buckets`, `kv_namespaces`, `durable_objects`, `queues`, `services`)
 with staging resources, so staging never touches production data. [C1]
 Check: `.env.staging.name` ends in `-staging`; each top-level binding key also exists under `env.staging` with a
 different resource id/name.
 
-**CF-07** · MUST · `ship.yaml` lists `staging` and `production`, with `production.requires: [staging]`, and every
+**CF-07** · MUST (public-facing) / SHOULD (internal tool) · `ship.yaml` lists `staging` and `production`, with `production.requires: [staging]`, and every
 Worker component sets `wranglerEnv` for staging. [C10]
 Check: `yq '.environments.production.requires' ship.yaml` contains `staging`.
 
@@ -153,7 +157,8 @@ Check: `.routes[].custom_domain == true` and `.workers_dev == false` at top leve
 
 ## Current gaps
 
-MUST gaps from reading each repo on 2026-11-22 (live-URL checks such as CF-23 not run).
+MUST gaps from reading each repo on 2026-11-22 (live-URL checks such as CF-23 not run). agent-idea and
+ideasquared-bot have no staging environment; for internal tools that is a SHOULD gap (CF-06/07), not listed.
 
 | Repo            | Rule ID | What is missing                                                                                       |
 | --------------- | ------- | ----------------------------------------------------------------------------------------------------- |
@@ -169,11 +174,7 @@ MUST gaps from reading each repo on 2026-11-22 (live-URL checks such as CF-23 no
 | pairflix        | CF-17   | no `wrangler deploy --dry-run` in CI                                                                  |
 | pairflix        | CF-18   | `deploy.yml` runs `wrangler deploy` / Pages deploys directly, not shipper; no `ship-rollback.yml`     |
 | pairflix        | CF-19   | `/health` exists but no `ship.yaml` health check uses it                                              |
-| agent-idea      | CF-06   | no `env.staging`                                                                                      |
-| agent-idea      | CF-07   | `ship.yaml` has production only                                                                       |
 | agent-idea      | CF-10   | no `worker-configuration.d.ts` or `cf-typegen` script (`Env` is hand-written)                         |
 | agent-idea      | CF-15   | tests call the Worker with hand-made fakes, not in workerd through the Vitest integration             |
 | ideasquared-bot | CF-01   | config is `wrangler.json`, not `wrangler.jsonc`                                                       |
-| ideasquared-bot | CF-06   | no `env.staging`                                                                                      |
-| ideasquared-bot | CF-07   | `ship.yaml` has production only                                                                       |
 | ideasquared-bot | CF-10   | `worker-configuration.d.ts` committed but CI does not check it is current                             |

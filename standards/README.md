@@ -44,12 +44,15 @@ the fix is a PR to this table.
 | --------------------- | ----------------------------- | --------------------------------------------------------------------------- |
 | `creatrgrid`          | cloudflare-app                | Hono API Worker + D1/Drizzle, three React/Vite frontends on static assets   |
 | `pairflix`            | cloudflare-app                | same stack as creatrgrid; frontends still on Cloudflare Pages (a gap)       |
-| `agent-idea`          | cloudflare-app, cli-tool      | one Worker plus the `idea` CLI and the `@ideasquared/log` package           |
-| `ideasquared-bot`     | cloudflare-app                | one Worker with a Durable Object                                            |
+| `agent-idea`          | cloudflare-app, cli-tool      | internal tool: one Worker plus the `idea` CLI and the `@ideasquared/log` package           |
+| `ideasquared-bot`     | cloudflare-app                | internal tool: one Worker with a Durable Object                                            |
 | `adopt-dont-shop`     | vps-app                       | React apps, Fastify gateway, gRPC services, Postgres, nginx, Docker Compose |
 | `eng`                 | cli-tool                      | also ships `install.sh` / `install.ps1`                                     |
 | `shipper`             | cli-tool                      | also ships the reusable deploy workflow every deployable repo calls         |
 | `ideasquared-website` | static-site                   | static HTML on Workers static assets (still on Netlify today: a gap)        |
+
+"Internal tool" means used only by the ideaSquared team, not by customers or the public; rules that differ for
+internal tools (CF-06, CF-07) say so. Every other repo is public-facing.
 
 A new repo is added to this table in the PR that creates it (or the first PR after).
 
