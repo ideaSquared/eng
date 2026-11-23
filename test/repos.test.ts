@@ -56,7 +56,7 @@ describe('depsSteps', () => {
     expect(depsSteps({ packageJson: false, requirements: false, venv: false }, false)).toEqual([]);
   });
 
-  it('makes a .venv once, then installs requirements.txt into it', () => {
+  it('makes the .venv when it is not ready, then installs requirements.txt into it', () => {
     expect(labels({ packageJson: false, requirements: true, venv: false })).toEqual([
       'python3 -m venv .venv',
       '.venv/bin/python -m pip install -r requirements.txt',

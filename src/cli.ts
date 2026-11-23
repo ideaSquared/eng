@@ -21,7 +21,7 @@ import {
   type Run,
 } from './checks.ts';
 import type { Action } from './menu.ts';
-import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, type RepoState } from './repos.ts';
+import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, venvPython, type RepoState } from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
@@ -139,23 +139,36 @@ const windows = process.platform === 'win32';
 
 const installDeps = (dir: string, name: string): boolean => {
   const path = join(dir, name);
+  // The repo's own Python, as an absolute path: the steps run inside the repo, so a relative ENG_DIR must not be
+  // applied twice.
+  const ownPython = resolve(path, venvPython(windows));
+  // Ready means its interpreter runs and has pip. A .venv left half-made by an interrupted run is not ready, and
+  // `python -m venv .venv` over it repairs it without deleting anything.
+  const venvReady = run(ownPython, ['-m', 'pip', '--version']) !== undefined;
   const steps = depsSteps(
     {
       packageJson: existsSync(join(path, 'package.json')),
       requirements: existsSync(join(path, 'requirements.txt')),
-      venv: existsSync(join(path, '.venv')),
+      venv: venvReady,
     },
     windows,
   );
-  // Python is optional (doctor warns): without it the repo's Python packages are skipped, not failed.
-  const python = !steps.some((step) => step.needsPython) || checkTool(pythonTool(pythonCommand(windows)), run).ok;
-  if (!python) console.log(`! ${name}: Python packages skipped. Install Python 3.10 or later, then run eng update.`);
+  // Python is optional (doctor warns): without it the repo's Python packages are skipped, not failed. The version
+  // that matters is the one that will run pip: the repo's own Python when it is ready, else the one that makes it.
+  const python = !steps.some((step) => step.needsPython) || checkTool(pythonTool(venvReady ? ownPython : pythonCommand(windows)), run).ok;
+  if (!python) {
+    console.log(
+      venvReady
+        ? `! ${name}: Python packages skipped. Its .venv uses a Python older than 3.10: delete ${join(path, '.venv')}, then run eng update.`
+        : `! ${name}: Python packages skipped. Install Python 3.10 or later, then run eng update.`,
+    );
+  }
   return steps
     .filter((step) => python || !step.needsPython)
     .every((step) => {
       console.log(`\n→ ${name}: ${step.label}`);
       // A repo's own Python is a path inside it; anything else is found on PATH.
-      const ok = live(step.command.startsWith('.venv') ? join(path, step.command) : step.command, step.args, path);
+      const ok = live(step.command === venvPython(windows) ? ownPython : step.command, step.args, path);
       if (!ok) console.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
       return ok;
     });
