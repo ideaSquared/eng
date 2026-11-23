@@ -8,7 +8,7 @@ import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from "./app.js";
 import { BASE_TOOLS, parseScopes, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, pythonTool, TOOLS, } from "./checks.js";
-import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, venvPython } from "./repos.js";
+import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, runDepsSteps, venvPython, } from "./repos.js";
 import { listNames, parseLsRemote, shouldCheck, staleRepos } from "./self-update.js";
 import { reclaimTerminal, releaseTerminal, spawn } from "./exec.js";
 import { banner, complete, prompt, route } from "./shell.js";
@@ -127,16 +127,7 @@ const installDeps = (dir, name) => {
             ? `! ${name}: Python packages skipped. Its .venv uses a Python older than 3.10: delete ${join(path, '.venv')}, then run eng update.`
             : `! ${name}: Python packages skipped. Install Python 3.10 or later, then run eng update.`);
     }
-    return steps
-        .filter((step) => python || !step.needsPython)
-        .every((step) => {
-        console.log(`\n→ ${name}: ${step.label}`);
-        // A repo's own Python is a path inside it; anything else is found on PATH.
-        const ok = live(step.command === venvPython(windows) ? ownPython : step.command, step.args, path);
-        if (!ok)
-            console.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
-        return ok;
-    });
+    return runDepsSteps(name, path, steps.filter((step) => python || !step.needsPython), { ownPython, venvCommand: venvPython(windows), venvDir: join(path, '.venv') }, { live: (command, args) => live(command, args, path), run, log: (line) => console.log(line) });
 };
 // ship, idea and eng as PATH resolves them: every PATH folder holding one, whether the first is pnpm's global bin,
 // and whether it runs. pnpm 11 moved that bin, so shims left by pnpm 10 can shadow a fresh install.

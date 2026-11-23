@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { depsSteps, planRepo, REPOS } from '../src/repos.ts';
+import { depsSteps, planRepo, REPOS, runDepsSteps, type DepsIo } from '../src/repos.ts';
 
 describe('planRepo', () => {
   it('clones a missing repo', () => {
@@ -77,5 +77,59 @@ describe('depsSteps', () => {
 
   it('lists social-generator, whose dependencies are Python', () => {
     expect(REPOS).toContain('social-generator');
+  });
+});
+
+describe('runDepsSteps', () => {
+  const venv = { ownPython: '/repos/sg/.venv/bin/python', venvCommand: '.venv/bin/python', venvDir: '/repos/sg/.venv' };
+  const steps = depsSteps({ packageJson: false, requirements: true, venv: false }, false);
+
+  // A machine where every command succeeds; `answers` is what the .venv's Python prints for --version and pip.
+  const machine = (answers: { version?: string; pip?: string }, fails: string[] = []) => {
+    const ran: string[] = [];
+    const lines: string[] = [];
+    const io: DepsIo = {
+      live: (command, args) => {
+        ran.push([command, ...args].join(' '));
+        return !fails.some((f) => [command, ...args].join(' ').includes(f));
+      },
+      run: (command, args) => (command !== venv.ownPython ? undefined : args[0] === '--version' ? answers.version : answers.pip),
+      log: (line) => lines.push(line),
+    };
+    return { io, ran, lines };
+  };
+
+  it('installs requirements with the repo Python once the .venv checks out', () => {
+    const { io, ran, lines } = machine({ version: 'Python 3.12.1', pip: 'pip 24.0' });
+    expect(runDepsSteps('sg', '/repos/sg', steps, venv, io)).toBe(true);
+    expect(ran).toEqual(['python3 -m venv .venv', '/repos/sg/.venv/bin/python -m pip install -r requirements.txt']);
+    expect(lines.filter((line) => line.startsWith('!'))).toEqual([]);
+  });
+
+  it('does not run pip when a repaired .venv kept an old Python', () => {
+    const { io, ran, lines } = machine({ version: 'Python 3.9.18', pip: 'pip 24.0' });
+    expect(runDepsSteps('sg', '/repos/sg', steps, venv, io)).toBe(false);
+    expect(ran).toEqual(['python3 -m venv .venv']);
+    expect(lines.at(-1)).toBe('! sg: its .venv still uses a Python older than 3.10. To rebuild it, delete /repos/sg/.venv, then run eng update.');
+  });
+
+  it('does not run pip when pip is still broken after the repair', () => {
+    const { io, ran, lines } = machine({ version: 'Python 3.12.1' });
+    expect(runDepsSteps('sg', '/repos/sg', steps, venv, io)).toBe(false);
+    expect(ran).toEqual(['python3 -m venv .venv']);
+    expect(lines.at(-1)).toBe('! sg: pip in its .venv is still broken. To rebuild it, delete /repos/sg/.venv, then run eng update.');
+  });
+
+  it('stops at a step that fails and says where to look', () => {
+    const { io, ran, lines } = machine({ version: 'Python 3.12.1', pip: 'pip 24.0' }, ['-m venv']);
+    expect(runDepsSteps('sg', '/repos/sg', steps, venv, io)).toBe(false);
+    expect(ran).toEqual(['python3 -m venv .venv']);
+    expect(lines.at(-1)).toContain('failed. Run it in /repos/sg to see why.');
+  });
+
+  it('skips the .venv checks for a repo that only needs pnpm', () => {
+    const { io, ran } = machine({});
+    expect(runDepsSteps('web', '/repos/web', depsSteps({ packageJson: true, requirements: false, venv: false }, false), venv, io)).toBe(true);
+    expect(ran).toEqual(['pnpm install']);
   });
 });

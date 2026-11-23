@@ -1,3 +1,4 @@
+import { checkTool, pythonTool } from "./checks.js";
 // The repos a developer works in, and how each one should be brought up to date.
 export const ORG = 'ideaSquared';
 export const REPOS = [
@@ -50,3 +51,25 @@ export const depsSteps = (files, windows) => [
         ? [{ command: venvPython(windows), args: ['-m', 'pip', 'install', '-r', 'requirements.txt'], label: 'pip install -r requirements.txt', needsPython: true }]
         : []),
 ];
+// Runs the steps in order and stops at the first failure. Making or repairing the .venv can leave an old interpreter
+// or a broken pip in place, so what will actually run pip is checked before pip runs. eng never deletes the folder.
+export const runDepsSteps = (name, path, steps, venv, io) => steps.every((step) => {
+    io.log(`\n→ ${name}: ${step.label}`);
+    // A repo's own Python is a path inside it; anything else is found on PATH.
+    if (!io.live(step.command === venv.venvCommand ? venv.ownPython : step.command, step.args)) {
+        io.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
+        return false;
+    }
+    if (!step.args.includes('venv'))
+        return true;
+    const rebuild = `To rebuild it, delete ${venv.venvDir}, then run eng update.`;
+    if (!checkTool(pythonTool(venv.ownPython), io.run).ok) {
+        io.log(`! ${name}: its .venv still uses a Python older than 3.10. ${rebuild}`);
+        return false;
+    }
+    if (io.run(venv.ownPython, ['-m', 'pip', '--version']) === undefined) {
+        io.log(`! ${name}: pip in its .venv is still broken. ${rebuild}`);
+        return false;
+    }
+    return true;
+});
