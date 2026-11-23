@@ -1,3 +1,5 @@
+import { checkTool, pythonTool, type Run } from './checks.ts';
+
 // The repos a developer works in, and how each one should be brought up to date.
 export const ORG = 'ideaSquared';
 
@@ -63,3 +65,31 @@ export const depsSteps = (files: RepoFiles, windows: boolean): DepsStep[] => [
     ? [{ command: venvPython(windows), args: ['-m', 'pip', 'install', '-r', 'requirements.txt'], label: 'pip install -r requirements.txt', needsPython: true }]
     : []),
 ];
+
+// What running the steps needs from the machine, injected so the logic can be tested without Python.
+export type DepsIo = { live: (command: string, args: string[]) => boolean; run: Run; log: (line: string) => void };
+// `ownPython` is the repo's own Python as an absolute path, `venvCommand` how the steps name it, `venvDir` its folder.
+export type VenvPaths = { ownPython: string; venvCommand: string; venvDir: string };
+
+// Runs the steps in order and stops at the first failure. Making or repairing the .venv can leave an old interpreter
+// or a broken pip in place, so what will actually run pip is checked before pip runs. eng never deletes the folder.
+export const runDepsSteps = (name: string, path: string, steps: readonly DepsStep[], venv: VenvPaths, io: DepsIo): boolean =>
+  steps.every((step) => {
+    io.log(`\n→ ${name}: ${step.label}`);
+    // A repo's own Python is a path inside it; anything else is found on PATH.
+    if (!io.live(step.command === venv.venvCommand ? venv.ownPython : step.command, step.args)) {
+      io.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
+      return false;
+    }
+    if (!step.args.includes('venv')) return true;
+    const rebuild = `To rebuild it, delete ${venv.venvDir}, then run eng update.`;
+    if (!checkTool(pythonTool(venv.ownPython), io.run).ok) {
+      io.log(`! ${name}: its .venv still uses a Python older than 3.10. ${rebuild}`);
+      return false;
+    }
+    if (io.run(venv.ownPython, ['-m', 'pip', '--version']) === undefined) {
+      io.log(`! ${name}: pip in its .venv is still broken. ${rebuild}`);
+      return false;
+    }
+    return true;
+  });

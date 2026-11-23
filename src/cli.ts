@@ -21,7 +21,19 @@ import {
   type Run,
 } from './checks.ts';
 import type { Action } from './menu.ts';
-import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, venvPython, type RepoState } from './repos.ts';
+import {
+  depsSteps,
+  GLOBAL_CLIS,
+  GLOBAL_PACKAGES,
+  GLOBAL_REPOS,
+  ORG,
+  planRepo,
+  pythonCommand,
+  REPOS,
+  runDepsSteps,
+  venvPython,
+  type RepoState,
+} from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
@@ -163,31 +175,13 @@ const installDeps = (dir: string, name: string): boolean => {
         : `! ${name}: Python packages skipped. Install Python 3.10 or later, then run eng update.`,
     );
   }
-  return steps
-    .filter((step) => python || !step.needsPython)
-    .every((step) => {
-      console.log(`\n→ ${name}: ${step.label}`);
-      // A repo's own Python is a path inside it; anything else is found on PATH.
-      const ok = live(step.command === venvPython(windows) ? ownPython : step.command, step.args, path);
-      if (!ok) {
-        console.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
-        return false;
-      }
-      // Making or repairing the .venv can leave an old interpreter or a broken pip in place, so check what will
-      // actually run pip before running it. eng never deletes the folder itself.
-      if (step.args.includes('venv')) {
-        const remove = `delete ${join(path, '.venv')}, then run eng update`;
-        if (!checkTool(pythonTool(ownPython), run).ok) {
-          console.log(`! ${name}: its .venv still uses a Python older than 3.10. To rebuild it, ${remove}.`);
-          return false;
-        }
-        if (run(ownPython, ['-m', 'pip', '--version']) === undefined) {
-          console.log(`! ${name}: pip in its .venv is still broken. To rebuild it, ${remove}.`);
-          return false;
-        }
-      }
-      return true;
-    });
+  return runDepsSteps(
+    name,
+    path,
+    steps.filter((step) => python || !step.needsPython),
+    { ownPython, venvCommand: venvPython(windows), venvDir: join(path, '.venv') },
+    { live: (command, args) => live(command, args, path), run, log: (line) => console.log(line) },
+  );
 };
 
 // ship, idea and eng as PATH resolves them: every PATH folder holding one, whether the first is pnpm's global bin,
