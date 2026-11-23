@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { atLeast, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, parseVersion, TOOLS, type Run, type Tool } from '../src/checks.ts';
+import {
+  atLeast,
+  checkGitHubLogin,
+  checkOpsAccess,
+  checkTool,
+  formatResults,
+  OPS_TOKEN_URL,
+  parseVersion,
+  pythonTool,
+  TOOLS,
+  type Run,
+  type Tool,
+} from '../src/checks.ts';
 
 const node: Tool = {
   name: 'Node',
@@ -171,5 +183,18 @@ describe('ops access', () => {
   it('never puts a token value in its output', () => {
     const results = checkOpsAccess(gh('X-Oauth-Scopes: repo\n', TEAMS), false, products);
     expect(JSON.stringify(results)).not.toMatch(/gh[pousr]_/);
+  });
+});
+
+describe('the social-generator tools', () => {
+  it('warns, never fails, without Python or ffmpeg', () => {
+    const ffmpeg = TOOLS.find((tool) => tool.name === 'ffmpeg');
+    expect(ffmpeg && checkTool(ffmpeg, answers({}))).toMatchObject({ ok: false, required: false });
+    expect(checkTool(pythonTool('python3'), answers({}))).toMatchObject({ ok: false, required: false });
+  });
+
+  it('needs Python 3.10 or later', () => {
+    expect(checkTool(pythonTool('python3'), answers({ python3: 'Python 3.9.18' }))).toMatchObject({ ok: false });
+    expect(checkTool(pythonTool('python'), answers({ python: 'Python 3.12.1' }))).toMatchObject({ ok: true, detail: '3.12.1' });
   });
 });

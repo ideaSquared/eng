@@ -1,6 +1,16 @@
 // The repos a developer works in, and how each one should be brought up to date.
 export const ORG = 'ideaSquared';
-export const REPOS = ['adopt-dont-shop', 'agent-idea', 'creatrgrid', 'eng', 'ideasquared-bot', 'ideasquared-website', 'pairflix', 'shipper'];
+export const REPOS = [
+    'adopt-dont-shop',
+    'agent-idea',
+    'creatrgrid',
+    'eng',
+    'ideasquared-bot',
+    'ideasquared-website',
+    'pairflix',
+    'shipper',
+    'social-generator',
+];
 // Global CLIs, installed and updated from their repos' default branches, with the command each one gives you.
 export const GLOBAL_CLIS = {
     [`${ORG}/eng`]: 'eng',
@@ -24,3 +34,18 @@ export const planRepo = (state) => {
     }
     return { name: state.name, action: 'pull' };
 };
+// The Python that creates a repo's environment: `python3` is a Microsoft Store stub on Windows.
+export const pythonCommand = (windows) => (windows ? 'python' : 'python3');
+// Where a repo's own Python lives once its .venv exists, relative to the repo.
+export const venvPython = (windows) => (windows ? '.venv\\Scripts\\python.exe' : '.venv/bin/python');
+// pnpm for a package.json; for a requirements.txt, a .venv inside the repo (made once), so nothing is installed
+// into the system Python and a re-run only installs what changed.
+export const depsSteps = (files, windows) => [
+    ...(files.packageJson ? [{ command: 'pnpm', args: ['install'], label: 'pnpm install', needsPython: false }] : []),
+    ...(files.requirements && !files.venv
+        ? [{ command: pythonCommand(windows), args: ['-m', 'venv', '.venv'], label: 'create a Python environment in .venv', needsPython: true }]
+        : []),
+    ...(files.requirements
+        ? [{ command: venvPython(windows), args: ['-m', 'pip', 'install', '-r', 'requirements.txt'], label: 'pip install -r requirements.txt', needsPython: true }]
+        : []),
+];
