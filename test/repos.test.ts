@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planRepo, REPOS } from '../src/repos.ts';
+import { depsSteps, planRepo, REPOS } from '../src/repos.ts';
 
 describe('planRepo', () => {
   it('clones a missing repo', () => {
@@ -41,5 +41,41 @@ describe('the repo list', () => {
   it('has the repos developers work in, and none that were retired', () => {
     expect(REPOS).toContain('ideasquared-website');
     expect(REPOS.filter((name) => name.startsWith('gaminginit'))).toEqual([]);
+  });
+});
+
+describe('depsSteps', () => {
+  const labels = (files: Parameters<typeof depsSteps>[0], windows = false): string[] =>
+    depsSteps(files, windows).map((step) => [step.command, ...step.args].join(' '));
+
+  it('runs pnpm install for a package.json', () => {
+    expect(labels({ packageJson: true, requirements: false, venv: false })).toEqual(['pnpm install']);
+  });
+
+  it('does nothing for a repo with no manifest', () => {
+    expect(depsSteps({ packageJson: false, requirements: false, venv: false }, false)).toEqual([]);
+  });
+
+  it('makes a .venv once, then installs requirements.txt into it', () => {
+    expect(labels({ packageJson: false, requirements: true, venv: false })).toEqual([
+      'python3 -m venv .venv',
+      '.venv/bin/python -m pip install -r requirements.txt',
+    ]);
+    expect(labels({ packageJson: false, requirements: true, venv: true })).toEqual(['.venv/bin/python -m pip install -r requirements.txt']);
+  });
+
+  it('uses python and the Scripts folder on Windows', () => {
+    expect(labels({ packageJson: false, requirements: true, venv: false }, true)).toEqual([
+      'python -m venv .venv',
+      '.venv\\Scripts\\python.exe -m pip install -r requirements.txt',
+    ]);
+  });
+
+  it('marks only the Python steps as needing Python', () => {
+    expect(depsSteps({ packageJson: true, requirements: true, venv: false }, false).map((step) => step.needsPython)).toEqual([false, true, true]);
+  });
+
+  it('lists social-generator, whose dependencies are Python', () => {
+    expect(REPOS).toContain('social-generator');
   });
 });

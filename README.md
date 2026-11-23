@@ -25,7 +25,8 @@ The installer:
    - signs you in to GitHub in your browser (`gh auth login`) and lets git use that sign-in;
    - tells you to create an `ENG_OPS_TOKEN` if you have not (see [Set up eng ops](#set-up-eng-ops-once));
    - installs the `ship` (deploys) and `idea` (sanitised logs) CLIs;
-   - clones every ideaSquared repo you have access to into `~/ideasquared` and runs `pnpm install` in each;
+   - clones every ideaSquared repo you have access to into `~/ideasquared` and installs each one's dependencies
+     (`pnpm install`, or for a Python repo such as social-generator, its `requirements.txt` into a `.venv` in the repo);
    - finishes with `eng doctor`.
 
 Open a new terminal afterwards so the PATH changes apply everywhere.
@@ -110,6 +111,10 @@ eng ops find <words...>      # search every product's commands
 - `eng update` only pulls a repo that is on its default branch with no uncommitted changes. Anything else is
   skipped and listed, so it never touches work in progress.
 - Docker is optional: only adopt-dont-shop needs it, so `eng doctor` warns rather than fails without it.
+- Python 3.10 or later and ffmpeg are optional: only social-generator needs them, so `eng doctor` warns without them.
+  eng does not install them. With Python present, `eng setup` and `eng update` install social-generator's
+  `requirements.txt` into `.venv` inside the repo, so run its tools with that Python: `.venv/bin/python render.py ...`
+  (Windows: `.venv\Scripts\python render.py ...`). Without Python the packages are skipped and listed.
 - `eng doctor` also shows, for each product, whether you can use its `eng ops`: gh needs `read:org`, and you need to
   be in the product's GitHub team. A missing team is a warning with the link to ask for access, not a failure.
 - `eng doctor` shows each of ship, idea and eng with its version, and fails when a name is found in more than one PATH

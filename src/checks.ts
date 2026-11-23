@@ -61,7 +61,26 @@ export const TOOLS: readonly Tool[] = [
     required: false,
     fix: 'Only adopt-dont-shop needs it: https://docs.docker.com/get-docker/',
   },
+  {
+    name: 'ffmpeg',
+    command: 'ffmpeg',
+    args: ['-version'],
+    showVersion: false,
+    required: false,
+    fix: 'Only social-generator needs it: winget install ffmpeg, brew install ffmpeg or sudo apt install ffmpeg',
+  },
 ];
+
+// Python has a different command per platform, so its check is built for the machine it runs on.
+export const pythonTool = (command: string): Tool => ({
+  name: 'Python',
+  command,
+  args: ['--version'],
+  min: [3, 10, 0],
+  showVersion: true,
+  required: false,
+  fix: 'Only social-generator needs it: install Python 3.10 or later from https://www.python.org/downloads/, then run eng update',
+});
 
 // The tools setup cannot install itself; the installer script does.
 export const BASE_TOOLS: readonly string[] = ['Node', 'pnpm', 'git', 'GitHub CLI'];

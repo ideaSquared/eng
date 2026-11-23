@@ -7,9 +7,21 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { parseArgs, promisify } from 'node:util';
 import { chooseAction } from './app.tsx';
-import { BASE_TOOLS, parseScopes, checkGitHubLogin, checkOpsAccess, checkTool, formatResults, OPS_TOKEN_URL, TOOLS, type Result, type Run } from './checks.ts';
+import {
+  BASE_TOOLS,
+  parseScopes,
+  checkGitHubLogin,
+  checkOpsAccess,
+  checkTool,
+  formatResults,
+  OPS_TOKEN_URL,
+  pythonTool,
+  TOOLS,
+  type Result,
+  type Run,
+} from './checks.ts';
 import type { Action } from './menu.ts';
-import { GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, REPOS, type RepoState } from './repos.ts';
+import { depsSteps, GLOBAL_CLIS, GLOBAL_PACKAGES, GLOBAL_REPOS, ORG, planRepo, pythonCommand, REPOS, type RepoState } from './repos.ts';
 import { listNames, parseLsRemote, shouldCheck, staleRepos, type Shas } from './self-update.ts';
 import { reclaimTerminal, releaseTerminal, spawn } from './exec.ts';
 import { banner, complete, prompt, route, type ShellState } from './shell.ts';
@@ -123,16 +135,31 @@ const repoState = (dir: string, name: string): RepoState => {
   };
 };
 
+const windows = process.platform === 'win32';
+
 const installDeps = (dir: string, name: string): boolean => {
   const path = join(dir, name);
-  if (!existsSync(join(path, 'package.json'))) return true;
-  console.log(`\n→ ${name}: pnpm install`);
-  const ok = live('pnpm', ['install'], path);
-  if (!ok) console.log(`! ${name}: pnpm install failed. Run it in ${path} to see why.`);
-  return ok;
+  const steps = depsSteps(
+    {
+      packageJson: existsSync(join(path, 'package.json')),
+      requirements: existsSync(join(path, 'requirements.txt')),
+      venv: existsSync(join(path, '.venv')),
+    },
+    windows,
+  );
+  // Python is optional (doctor warns): without it the repo's Python packages are skipped, not failed.
+  const python = !steps.some((step) => step.needsPython) || checkTool(pythonTool(pythonCommand(windows)), run).ok;
+  if (!python) console.log(`! ${name}: Python packages skipped. Install Python 3.10 or later, then run eng update.`);
+  return steps
+    .filter((step) => python || !step.needsPython)
+    .every((step) => {
+      console.log(`\n→ ${name}: ${step.label}`);
+      // A repo's own Python is a path inside it; anything else is found on PATH.
+      const ok = live(step.command.startsWith('.venv') ? join(path, step.command) : step.command, step.args, path);
+      if (!ok) console.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
+      return ok;
+    });
 };
-
-const windows = process.platform === 'win32';
 
 // ship, idea and eng as PATH resolves them: every PATH folder holding one, whether the first is pnpm's global bin,
 // and whether it runs. pnpm 11 moved that bin, so shims left by pnpm 10 can shadow a fresh install.
@@ -214,7 +241,7 @@ const doctor = (dir: string): number => {
   const token = login.ok ? opsToken() : undefined;
   const opsResults = token === undefined ? [] : checkOpsAccess((_command, args) => opsGh(token, args), opsTokenFromEnv(), OPS_PRODUCTS);
   const globals = globalCliResults();
-  const tools = TOOLS.map((t) => globals.find((g) => g.name === t.command) ?? checkTool(t, run));
+  const tools = [...TOOLS, pythonTool(pythonCommand(windows))].map((t) => globals.find((g) => g.name === t.command) ?? checkTool(t, run));
   const { lines, ok } = formatResults([...tools, ...globals.filter((g) => !TOOLS.some((t) => t.command === g.name)), login, ...opsResults, ...repoResults]);
   console.log(lines.join('\n'));
   console.log(ok ? '\nAll required tools are ready.' : '\nSome required tools are missing. Follow the fixes above.');
