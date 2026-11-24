@@ -118,11 +118,32 @@ Check: the audit's report lists findings per heuristic.
 
 ## Current gaps
 
-Known on 22 Nov 2026; the first Consistency sweep run fills in the rest.
+Found by the Consistency sweep of 2026-11-24. "PR" means a `chore(standards)` PR is open and closes it. UI-07, UI-14
+and the live-page checks belong to the Monthly UI audit and were not checked.
 
-| Repo            | Rule  | Gap                                                                  |
-| --------------- | ----- | -------------------------------------------------------------------- |
-| adopt-dont-shop | UI-02 | no axe checks in CI (PR in progress)                                  |
-| creatrgrid      | UI-02 | no axe checks in CI (PR in progress)                                  |
-| pairflix        | UI-02 | no axe checks in CI (PR in progress)                                  |
-| pairflix        | UI-12 | no Design System artifact                                             |
+| Repo                | Rule  | Gap                                                                                       |
+| ------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| creatrgrid          | UI-01 | no WCAG 2.2 AA statement in `CLAUDE.md` (PR creatrgrid#113)                               |
+| creatrgrid          | UI-04 | `jsx-a11y` not in the ESLint config (PR creatrgrid#113)                                   |
+| creatrgrid          | UI-05 | `outline: none` on `:focus` in about 8 `.css.ts` files, no `:focus-visible` style          |
+| creatrgrid          | UI-08 | no global `prefers-reduced-motion` rule                                                   |
+| creatrgrid          | UI-09 | dashboard and admin set no per-route document title                                       |
+| creatrgrid          | UI-10 | no 320px viewport test                                                                    |
+| pairflix            | UI-01 | no WCAG 2.2 AA statement (PR pairflix#144)                                                |
+| pairflix            | UI-05 | focus outline removed on TagInput and Textarea (PR pairflix#144)                          |
+| pairflix            | UI-08 | no global `prefers-reduced-motion` rule (PR pairflix#144)                                 |
+| pairflix            | UI-09 | no per-route title; `lang` is `en` (client fixed in PR pairflix#144, admin not reviewed)  |
+| pairflix            | UI-10 | no 320px viewport test                                                                    |
+| pairflix            | UI-12 | no Design System artifact linked from the README                                          |
+| pairflix            | UI-13 | about 529 colour or px literals outside the theme files                                   |
+| adopt-dont-shop     | UI-05 | `outline: none` without `:focus-visible` in 6 files (PR adopt-dont-shop#1807)             |
+| adopt-dont-shop     | UI-08 | no global `prefers-reduced-motion` rule (PR adopt-dont-shop#1807)                         |
+| adopt-dont-shop     | UI-09 | no per-route document title                                                               |
+| adopt-dont-shop     | UI-10 | no 320px reflow test (PR adopt-dont-shop#1807)                                            |
+| adopt-dont-shop     | UI-12 | no Design System artifact linked from the README                                          |
+| adopt-dont-shop     | UI-13 | colour and spacing literals remain (ratchet at 1195)                                      |
+| adopt-dont-shop     | UI-17 | loading, empty and error states not audited per page                                      |
+| adopt-dont-shop     | UI-18 | destructive-confirm coverage not audited per page                                         |
+| ideasquared-website | UI-01 | no WCAG 2.2 AA statement in `CLAUDE.md` (PR ideasquared-website#115)                      |
+| ideasquared-website | UI-12 | README links no Design System artifact                                                    |
+| ideasquared-website | UI-13 | about 88 raw `px` values in `styles/site.css` outside `tokens.css`                         |

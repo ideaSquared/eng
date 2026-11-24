@@ -92,19 +92,8 @@ Check: `CLAUDE.md` states the CLI output rule; server paths pass COMMON-38's che
 
 ## Current gaps
 
-MUST gaps from reading the repos on 2026-11-22 (dist was not run on Node 24).
+MUST gaps from the Consistency sweep of 2026-11-24 (dist is clean in eng, shipper and agent-idea).
 
-| Repo       | Rule ID | What is missing                                                                       |
-| ---------- | ------- | ------------------------------------------------------------------------------------- |
-| eng        | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
-| eng        | CLI-05  | no CI step installs the packed CLI and runs it                                        |
-| eng        | CLI-07  | no `--version`                                                                        |
-| eng        | CLI-12  | `version` stays `0.1.0`; no tags or GitHub Releases                                   |
-| shipper    | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
-| shipper    | CLI-05  | no CI step installs the packed CLI and runs it                                        |
-| shipper    | CLI-07  | no `--version`                                                                        |
-| shipper    | CLI-12  | `version` stays `0.1.0`; releases are only the moving `v1` tag, no `vX.Y.Z` or notes |
-| agent-idea | CLI-03  | dist check uses `git diff`, which misses new untracked files                          |
-| agent-idea | CLI-05  | no CI step installs the packed CLI and runs it                                        |
-| agent-idea | CLI-07  | `idea --version` fails with "Unknown option"                                          |
-| agent-idea | CLI-12  | only package tags (`log-v*`, `ops-v*`); the `idea` CLI has no `vX.Y.Z` releases      |
+| Repo    | Rule ID | What is missing                                                                              |
+| ------- | ------- | -------------------------------------------------------------------------------------------- |
+| shipper | CLI-12  | `package.json` is 1.1.0 but only tags `v1` and `v1.0.0` exist; run the Release workflow (needs a person) |

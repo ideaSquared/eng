@@ -245,83 +245,25 @@ Check: a workflow uses `ossf/scorecard-action` (SHA-pinned) with `schedule:`.
 
 ## Current gaps
 
-MUST gaps found by reading each repo's default branch on 2026-11-22. Settings-based rules (COMMON-18, -27, -30,
--32, -33) need `gh api` with admin access and were not checked; the first sweep fills them in. SHOULD gaps are not
-listed here.
+MUST gaps from the Consistency sweep of 2026-11-24 (default branches). "PR" means a `chore(standards)` PR is open
+and closes it. SHOULD gaps are not listed here.
 
-| Repo                | Rule ID   | What is missing                                                                                 |
-| ------------------- | --------- | ----------------------------------------------------------------------------------------------- |
-| creatrgrid          | COMMON-01 | `.nvmrc` is `22.23.1`                                                                           |
-| creatrgrid          | COMMON-02 | `engines.node` is `>=22.22.0 <23.0.0`                                                           |
-| creatrgrid          | COMMON-19 | actions pinned by tag (`actions/checkout@v7`, `pnpm/action-setup@v6`, `dorny/paths-filter@v4`…) |
-| creatrgrid          | COMMON-20 | no top-level `permissions:` in `ci.yml`, `deploy.yml`, `ship-rollback.yml`                      |
-| creatrgrid          | COMMON-35 | README has no Deploy section                                                                    |
-| creatrgrid          | COMMON-39 | no `SECURITY.md`                                                                                |
-| creatrgrid          | COMMON-40 | no `license` in `package.json`, no `LICENSE`                                                    |
-| pairflix            | COMMON-01 | `.nvmrc` is `22.23.1`                                                                           |
-| pairflix            | COMMON-02 | `engines.node` is `>=22.22.0 <23.0.0`                                                           |
-| pairflix            | COMMON-13 | no commitlint config or `commit-msg` hook (only `pre-commit`)                                   |
-| pairflix            | COMMON-19 | actions pinned by tag                                                                           |
-| pairflix            | COMMON-20 | no top-level `permissions:` in `pr-labeler.yml`                                                 |
-| pairflix            | COMMON-37 | logging skill differs from the canonical copy                                                   |
-| pairflix            | COMMON-39 | no `SECURITY.md`                                                                                |
-| pairflix            | COMMON-40 | no `license` in `package.json`, no `LICENSE`                                                    |
-| agent-idea          | COMMON-01 | `.nvmrc` is `22`                                                                                |
-| agent-idea          | COMMON-02 | `engines.node` is `>=22.18`                                                                     |
-| agent-idea          | COMMON-10 | no ESLint config or `lint` script                                                               |
-| agent-idea          | COMMON-11 | no Prettier config or `format:check` script                                                     |
-| agent-idea          | COMMON-13 | no commitlint                                                                                   |
-| agent-idea          | COMMON-19 | actions pinned by tag                                                                           |
-| agent-idea          | COMMON-20 | no top-level `permissions:` in `ship-rollback.yml`                                              |
-| agent-idea          | COMMON-24 | no `.github/dependabot.yml`                                                                     |
-| agent-idea          | COMMON-29 | no PR template                                                                                  |
-| agent-idea          | COMMON-39 | no `SECURITY.md`                                                                                |
-| agent-idea          | COMMON-40 | no `license` in `package.json`, no `LICENSE`                                                    |
-| ideasquared-bot     | COMMON-01 | no `.nvmrc`                                                                                     |
-| ideasquared-bot     | COMMON-02 | no `engines`                                                                                    |
-| ideasquared-bot     | COMMON-03 | CI hard-codes `node-version: 22`                                                                |
-| ideasquared-bot     | COMMON-05 | no `pnpm-workspace.yaml`                                                                        |
-| ideasquared-bot     | COMMON-09 | no `typecheck` script (CI runs `tsc --noEmit` directly)                                         |
-| ideasquared-bot     | COMMON-10 | no ESLint config or `lint` script                                                               |
-| ideasquared-bot     | COMMON-11 | `.prettierrc` but no `format:check` script, not run in CI                                       |
-| ideasquared-bot     | COMMON-13 | no commitlint                                                                                   |
-| ideasquared-bot     | COMMON-19 | actions pinned by tag                                                                           |
-| ideasquared-bot     | COMMON-20 | no top-level `permissions:` in `ship-rollback.yml`                                              |
-| ideasquared-bot     | COMMON-24 | no `.github/dependabot.yml`                                                                     |
-| ideasquared-bot     | COMMON-29 | no PR template                                                                                  |
-| ideasquared-bot     | COMMON-39 | no `SECURITY.md`                                                                                |
-| ideasquared-bot     | COMMON-40 | no `license` in `package.json`, no `LICENSE`                                                    |
-| adopt-dont-shop     | COMMON-24 | no `.github/dependabot.yml` (uses Renovate)                                                     |
-| adopt-dont-shop     | COMMON-26 | `renovate.json` present                                                                         |
-| eng                 | COMMON-01 | `.nvmrc` is `22` (and `install.sh` / `install.ps1` install Node 22)                             |
-| eng                 | COMMON-02 | `engines.node` is `>=22.18`                                                                     |
-| eng                 | COMMON-05 | no `pnpm-workspace.yaml`                                                                        |
-| eng                 | COMMON-10 | no ESLint config or `lint` script                                                               |
-| eng                 | COMMON-11 | no Prettier config or `format:check` script                                                     |
-| eng                 | COMMON-13 | no commitlint                                                                                   |
-| eng                 | COMMON-16 | `ci.yml` has no `concurrency`                                                                   |
-| eng                 | COMMON-19 | actions pinned by tag                                                                           |
-| eng                 | COMMON-24 | no `.github/dependabot.yml`                                                                     |
-| eng                 | COMMON-29 | no PR template                                                                                  |
-| eng                 | COMMON-39 | no `SECURITY.md`                                                                                |
-| shipper             | COMMON-01 | `.nvmrc` is `22`                                                                                |
-| shipper             | COMMON-02 | `engines.node` is `>=22.18`                                                                     |
-| shipper             | COMMON-05 | no `pnpm-workspace.yaml`                                                                        |
-| shipper             | COMMON-10 | no ESLint config or `lint` script                                                               |
-| shipper             | COMMON-11 | no Prettier config or `format:check` script                                                     |
-| shipper             | COMMON-13 | no commitlint                                                                                   |
-| shipper             | COMMON-16 | `ci.yml` has no `concurrency`                                                                   |
-| shipper             | COMMON-19 | actions pinned by tag (including inside the reusable `deploy.yml`, `gate.yml`, `report.yml`)    |
-| shipper             | COMMON-24 | no `.github/dependabot.yml`                                                                     |
-| shipper             | COMMON-29 | no PR template                                                                                  |
-| shipper             | COMMON-39 | no `SECURITY.md`                                                                                |
-| ideasquared-website | COMMON-24 | no `.github/dependabot.yml`                                                                     |
-| ideasquared-website | COMMON-28 | no `.github/CODEOWNERS`                                                                         |
-| ideasquared-website | COMMON-29 | no PR template                                                                                  |
-| ideasquared-website | COMMON-35 | no `README.md`                                                                                  |
-| ideasquared-website | COMMON-36 | no `CLAUDE.md`                                                                                  |
-| ideasquared-website | COMMON-37 | no logging skill copy                                                                           |
-| ideasquared-website | COMMON-39 | no `SECURITY.md`                                                                                |
+| Repo                | Rule ID    | What is missing                                                                                          |
+| ------------------- | ---------- | -------------------------------------------------------------------------------------------------------- |
+| creatrgrid          | COMMON-40  | no `LICENSE` (PR creatrgrid#113)                                                                         |
+| pairflix            | COMMON-36  | `CLAUDE.md` lacks the `skills/logging` path (PR pairflix#144)                                            |
+| agent-idea          | COMMON-16  | `ci.yml` PR runs never cancel superseded runs (PR agent-idea#32)                                         |
+| agent-idea          | COMMON-02 | `engines.node` is `>=24.0.0 <25.0.0`; cli-tool needs `>=24` (PR agent-idea#32)                           |
+| shipper             | COMMON-02  | `engines.node` was `>=24.0.0 <25.0.0`; cli-tool needs `>=24` (PR shipper#42)                             |
+| shipper             | COMMON-30  | no ruleset applies to `main` (needs a person)                                                            |
+| shipper             | COMMON-18  | no required status checks (needs a person)                                                               |
+| shipper             | COMMON-32  | secret scanning push protection is disabled (needs a person)                                             |
+| eng                 | COMMON-30  | no ruleset applies to `main` (needs a person)                                                            |
+| eng                 | COMMON-18  | no required status checks (needs a person)                                                               |
+| eng                 | COMMON-32  | secret scanning push protection is disabled (needs a person)                                             |
+| adopt-dont-shop     | COMMON-18  | `main` ruleset requires 3 checks, `ship.yaml` lists 4 (`Production Image Smoke` missing; needs a person) |
+| adopt-dont-shop     | COMMON-32  | secret scanning push protection is disabled (needs a person)                                             |
 
-ideasquared-website has no `package.json`, CI or tooling yet; the toolchain rules (COMMON-01 to -16) apply once
-SITE-06 adds them.
+Not checked (the sweep's API access is blocked): COMMON-27 and COMMON-33 in every repo; COMMON-18, -30 and -32 in
+creatrgrid, pairflix, agent-idea, ideasquared-bot and ideasquared-website (creatrgrid's CI notes that rulesets are
+unavailable on its plan). eng's `LICENSE` is MIT with a named holder: confirm that is intended (COMMON-40).

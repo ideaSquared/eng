@@ -177,10 +177,5 @@ Check: compose files use `secrets:` or `env_file:` paths, no literal secret valu
 
 ## Current gaps
 
-MUST gaps from reading adopt-dont-shop on 2026-11-22. It already meets most of this file (digest-pinned images,
-non-root users, Trivy scans, nightly restore drill, shipper with a rollback workflow, host hardening in
-`docs/infrastructure/SERVER-SETUP.md`); live checks (VPS-19 redirect, VPS-20 headers, VPS-26 drill recency) were not run.
-
-| Repo            | Rule ID | What is missing                                                                 |
-| --------------- | ------- | ------------------------------------------------------------------------------- |
-| adopt-dont-shop | VPS-11  | digest pins are kept current by Renovate (`pinDigests`), not Dependabot `docker` / `docker-compose` entries |
+No MUST gaps found by the Consistency sweep of 2026-11-24 (adopt-dont-shop). Not checked: VPS-19 (redirect),
+VPS-20 (headers), VPS-26 (rollback drill recency).
