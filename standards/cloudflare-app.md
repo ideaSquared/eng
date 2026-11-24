@@ -160,24 +160,6 @@ Check: `.routes[].custom_domain == true` and `.workers_dev == false` at top leve
 
 ## Current gaps
 
-MUST gaps from reading each repo on 2026-11-22 (live-URL checks such as CF-23 not run). agent-idea and
-ideasquared-bot have no staging environment; for internal tools that is a SHOULD gap (CF-06/07), not listed.
-
-| Repo            | Rule ID | What is missing                                                                                       |
-| --------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| creatrgrid      | CF-04   | `apps/web` has a `main` script but no `observability` block                                           |
-| creatrgrid      | CF-10   | no committed `worker-configuration.d.ts`, no staleness check in CI (`cf-typegen` script exists)       |
-| creatrgrid      | CF-12   | no CI check against editing shipped migrations                                                        |
-| creatrgrid      | CF-14   | no D1 Time Travel restore in the docs                                                                 |
-| creatrgrid      | CF-17   | CI builds but never runs `wrangler deploy --dry-run`                                                  |
-| pairflix        | CF-02   | `apps/client` and `apps/admin` are Pages projects (`pages_build_output_dir`)                          |
-| pairflix        | CF-07   | no `ship.yaml`                                                                                        |
-| pairflix        | CF-12   | no CI check against editing shipped migrations                                                        |
-| pairflix        | CF-13   | migrations not applied through shipper (no `ship.yaml`)                                               |
-| pairflix        | CF-17   | no `wrangler deploy --dry-run` in CI                                                                  |
-| pairflix        | CF-18   | `deploy.yml` runs `wrangler deploy` / Pages deploys directly, not shipper; no `ship-rollback.yml`     |
-| pairflix        | CF-19   | `/health` exists but no `ship.yaml` health check uses it                                              |
-| agent-idea      | CF-10   | no `worker-configuration.d.ts` or `cf-typegen` script (`Env` is hand-written)                         |
-| agent-idea      | CF-15   | tests call the Worker with hand-made fakes, not in workerd through the Vitest integration             |
-| ideasquared-bot | CF-01   | config is `wrangler.json`, not `wrangler.jsonc`                                                       |
-| ideasquared-bot | CF-10   | `worker-configuration.d.ts` committed but CI does not check it is current                             |
+No MUST gaps found by the Consistency sweep of 2026-11-24. Not checked: CF-23 and live CF-19 (live URLs), CF-21
+(rate limiting on unauthenticated routes) in every repo. agent-idea and ideasquared-bot have no staging
+environment; for internal tools that is a SHOULD gap (CF-06/07), not listed.

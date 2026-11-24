@@ -112,14 +112,5 @@ Check: `jq '.vars, .secrets' wrangler.jsonc` are null; `grep -rniE '(api[_-]?key
 
 ## Current gaps
 
-MUST gaps from reading ideasquared-website on 2026-11-22. It is still on Netlify; it uses no Netlify features
-(no `netlify.toml`, `_redirects`, `_headers`, forms or functions), so the move is files plus one owner step.
-
-| Repo                | Rule ID | What is missing                                                                                       |
-| ------------------- | ------- | ----------------------------------------------------------------------------------------------------- |
-| ideasquared-website | SITE-15 | **needs the owner:** move the domain's DNS to Cloudflare and attach it as a Worker custom domain, then retire the Netlify site |
-| ideasquared-website | SITE-12 | no `wrangler.jsonc` (covers SITE-13, SITE-14, SITE-16 too)                                            |
-| ideasquared-website | SITE-17 | no `ship.yaml` or shipper deploy workflow                                                             |
-| ideasquared-website | SITE-04 | no `_headers`                                                                                         |
-| ideasquared-website | SITE-06 | no `package.json` or CI workflow (no HTML validation, link check or dry-run)                          |
-| ideasquared-website | SITE-07 | no Lighthouse CI                                                                                      |
+No MUST gaps found by the Consistency sweep of 2026-11-24. ideasquared-website is served by Cloudflare Workers
+static assets; the six SITE-04 headers are live.
