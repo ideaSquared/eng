@@ -253,6 +253,7 @@ and closes it. SHOULD gaps are not listed here.
 | creatrgrid          | COMMON-40  | no `LICENSE` (PR creatrgrid#113)                                                                         |
 | pairflix            | COMMON-36  | `CLAUDE.md` lacks the `skills/logging` path (PR pairflix#144)                                            |
 | agent-idea          | COMMON-16  | `ci.yml` PR runs never cancel superseded runs (PR agent-idea#32)                                         |
+| agent-idea          | COMMON-02 | `engines.node` is `>=24.0.0 <25.0.0`; cli-tool needs `>=24` (PR agent-idea#32)                           |
 | shipper             | COMMON-02  | `engines.node` was `>=24.0.0 <25.0.0`; cli-tool needs `>=24` (PR shipper#42)                             |
 | shipper             | COMMON-30  | no ruleset applies to `main` (needs a person)                                                            |
 | shipper             | COMMON-18  | no required status checks (needs a person)                                                               |

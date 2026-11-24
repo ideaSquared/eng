@@ -163,3 +163,6 @@ Check: `.routes[].custom_domain == true` and `.workers_dev == false` at top leve
 No MUST gaps found by the Consistency sweep of 2026-11-24. Not checked: CF-23 and live CF-19 (live URLs), CF-21
 (rate limiting on unauthenticated routes) in every repo. agent-idea and ideasquared-bot have no staging
 environment; for internal tools that is a SHOULD gap (CF-06/07), not listed.
+
+Open question: CF-18 and SITE-17 say `deploy.yml@v1`, but agent-idea and ideasquared-website pin shipper to a SHA
+(with a CI check that the pins match). The rule and the repos disagree; the rule needs a decision (see COMMON-19).

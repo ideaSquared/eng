@@ -178,4 +178,4 @@ Check: compose files use `secrets:` or `env_file:` paths, no literal secret valu
 ## Current gaps
 
 No MUST gaps found by the Consistency sweep of 2026-11-24 (adopt-dont-shop). Not checked: VPS-19 (redirect),
-VPS-20 (headers), VPS-26 (restore drill recency).
+VPS-20 (headers), VPS-26 (rollback drill recency).

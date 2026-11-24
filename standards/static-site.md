@@ -114,3 +114,6 @@ Check: `jq '.vars, .secrets' wrangler.jsonc` are null; `grep -rniE '(api[_-]?key
 
 No MUST gaps found by the Consistency sweep of 2026-11-24. ideasquared-website is served by Cloudflare Workers
 static assets; the six SITE-04 headers are live.
+
+Open question: CF-18 and SITE-17 say `deploy.yml@v1`, but agent-idea and ideasquared-website pin shipper to a SHA
+(with a CI check that the pins match). The rule and the repos disagree; the rule needs a decision (see COMMON-19).
