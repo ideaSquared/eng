@@ -73,23 +73,33 @@ export type VenvPaths = { ownPython: string; venvCommand: string; venvDir: strin
 
 // Runs the steps in order and stops at the first failure. Making or repairing the .venv can leave an old interpreter
 // or a broken pip in place, so what will actually run pip is checked before pip runs. eng never deletes the folder.
-export const runDepsSteps = (name: string, path: string, steps: readonly DepsStep[], venv: VenvPaths, io: DepsIo): boolean =>
-  steps.every((step) => {
-    io.log(`\n→ ${name}: ${step.label}`);
-    // A repo's own Python is a path inside it; anything else is found on PATH.
-    if (!io.live(step.command === venv.venvCommand ? venv.ownPython : step.command, step.args)) {
-      io.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
-      return false;
-    }
-    if (!step.args.includes('venv')) return true;
-    const rebuild = `To rebuild it, delete ${venv.venvDir}, then run eng update.`;
-    if (!checkTool(pythonTool(venv.ownPython), io.run).ok) {
-      io.log(`! ${name}: its .venv still uses a Python older than 3.10. ${rebuild}`);
-      return false;
-    }
-    if (io.run(venv.ownPython, ['-m', 'pip', '--version']) === undefined) {
-      io.log(`! ${name}: pip in its .venv is still broken. ${rebuild}`);
-      return false;
-    }
-    return true;
-  });
+// Debian and Ubuntu ship python3 without venv's ensurepip, so `-m venv` would fail on every run: like a missing
+// Python, that skips the Python steps instead of failing.
+export const runDepsSteps = (name: string, path: string, steps: readonly DepsStep[], venv: VenvPaths, io: DepsIo): boolean => {
+  const makeVenv = steps.find((step) => step.args.includes('venv'));
+  const canMakeVenv = !makeVenv || io.run(makeVenv.command, ['-c', 'import ensurepip']) !== undefined;
+  if (!canMakeVenv) {
+    io.log(`! ${name}: Python packages skipped. Its Python cannot make a .venv: install python3-venv (sudo apt install python3-venv), then run eng update.`);
+  }
+  return steps
+    .filter((step) => canMakeVenv || !step.needsPython)
+    .every((step) => {
+      io.log(`\n→ ${name}: ${step.label}`);
+      // A repo's own Python is a path inside it; anything else is found on PATH.
+      if (!io.live(step.command === venv.venvCommand ? venv.ownPython : step.command, step.args)) {
+        io.log(`! ${name}: ${step.label} failed. Run it in ${path} to see why.`);
+        return false;
+      }
+      if (!step.args.includes('venv')) return true;
+      const rebuild = `To rebuild it, delete ${venv.venvDir}, then run eng update.`;
+      if (!checkTool(pythonTool(venv.ownPython), io.run).ok) {
+        io.log(`! ${name}: its .venv still uses a Python older than 3.10. ${rebuild}`);
+        return false;
+      }
+      if (io.run(venv.ownPython, ['-m', 'pip', '--version']) === undefined) {
+        io.log(`! ${name}: pip in its .venv is still broken. ${rebuild}`);
+        return false;
+      }
+      return true;
+    });
+};

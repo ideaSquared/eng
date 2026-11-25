@@ -114,7 +114,8 @@ eng ops find <words...>      # search every product's commands
 - Python 3.10 or later and ffmpeg are optional: only social-generator needs them, so `eng doctor` warns without them.
   eng does not install them. With Python present, `eng setup` and `eng update` install social-generator's
   `requirements.txt` into `.venv` inside the repo, so run its tools with that Python: `.venv/bin/python render.py ...`
-  (Windows: `.venv\Scripts\python render.py ...`). Without Python the packages are skipped and listed.
+  (Windows: `.venv\Scripts\python render.py ...`). Without Python, or without its venv module (Debian and Ubuntu
+  need `sudo apt install python3-venv`), the packages are skipped and listed.
 - `eng doctor` also shows, for each product, whether you can use its `eng ops`: gh needs `read:org`, and you need to
   be in the product's GitHub team. A missing team is a warning with the link to ask for access, not a failure.
 - `eng doctor` shows each of ship, idea and eng with its version, and fails when a name is found in more than one PATH
