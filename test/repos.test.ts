@@ -85,7 +85,7 @@ describe('runDepsSteps', () => {
   const steps = depsSteps({ packageJson: false, requirements: true, venv: false }, false);
 
   // A machine where every command succeeds; `answers` is what the .venv's Python prints for --version and pip.
-  const machine = (answers: { version?: string; pip?: string }, fails: string[] = []) => {
+  const machine = (answers: { version?: string; pip?: string; ensurepip?: boolean }, fails: string[] = []) => {
     const ran: string[] = [];
     const lines: string[] = [];
     const io: DepsIo = {
@@ -93,7 +93,11 @@ describe('runDepsSteps', () => {
         ran.push([command, ...args].join(' '));
         return !fails.some((f) => [command, ...args].join(' ').includes(f));
       },
-      run: (command, args) => (command !== venv.ownPython ? undefined : args[0] === '--version' ? answers.version : answers.pip),
+      run: (command, args) => {
+        if (command === 'python3' && args.join(' ') === '-c import ensurepip') return answers.ensurepip === false ? undefined : '';
+        if (command !== venv.ownPython) return undefined;
+        return args[0] === '--version' ? answers.version : answers.pip;
+      },
       log: (line) => lines.push(line),
     };
     return { io, ran, lines };
@@ -125,6 +129,16 @@ describe('runDepsSteps', () => {
     expect(runDepsSteps('sg', '/repos/sg', steps, venv, io)).toBe(false);
     expect(ran).toEqual(['python3 -m venv .venv']);
     expect(lines.at(-1)).toContain('failed. Run it in /repos/sg to see why.');
+  });
+
+  it('skips the Python steps, with a hint, when the Python cannot make a .venv', () => {
+    const { io, ran, lines } = machine({ version: 'Python 3.12.1', pip: 'pip 24.0', ensurepip: false });
+    const withPnpm = depsSteps({ packageJson: true, requirements: true, venv: false }, false);
+    expect(runDepsSteps('sg', '/repos/sg', withPnpm, venv, io)).toBe(true);
+    expect(ran).toEqual(['pnpm install']);
+    expect(lines).toContain(
+      '! sg: Python packages skipped. Its Python cannot make a .venv: install python3-venv (sudo apt install python3-venv), then run eng update.',
+    );
   });
 
   it('skips the .venv checks for a repo that only needs pnpm', () => {
